@@ -60,8 +60,22 @@ export default function ProfilePage() {
       if (u.customFriendsCount) {
         setCustomFriendsCount(u.customFriendsCount);
       } else {
-        setCustomFriendsCount(null);
+        const convs = Storage.getSavedConversations(u.handle).filter(c => !c.isGroup);
+        setCustomFriendsCount(convs.length > 0 ? String(convs.length) : "0");
       }
+
+      // Fetch remote fresh profile from Supabase
+      Storage.fetchRemoteUsers().then(users => {
+        const fresh = users.find(x => x.handle.toLowerCase() === u.handle.toLowerCase());
+        if (fresh) {
+          if (fresh.avatar && fresh.avatar !== "/default-avatar.jpg") setAvatar(fresh.avatar);
+          if (fresh.bio) setBio(fresh.bio);
+          if (fresh.name) setDisplayName(fresh.name);
+          if (fresh.links && fresh.links.length > 0) setLinks(fresh.links);
+          if (fresh.verifiedBadge) setVerifiedBadge(fresh.verifiedBadge);
+          if (fresh.customFriendsCount) setCustomFriendsCount(fresh.customFriendsCount);
+        }
+      });
       
       // Load multiple links
       if (u.links && u.links.length > 0) {

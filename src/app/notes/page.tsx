@@ -35,8 +35,11 @@ export default function NotesPage() {
   useEffect(() => {
     let isMounted = true;
     const loadNotes = async () => {
-      const user = Storage.getCurrentUser();
+      // First fetch latest remote users and their notes from cloud
+      await Storage.fetchRemoteUsers();
       if (!isMounted) return;
+
+      const user = Storage.getCurrentUser();
       setCurrentUser(user);
 
       if (user.note) {

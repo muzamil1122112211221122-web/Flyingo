@@ -47,25 +47,17 @@ export default function FlamingoosPage() {
   useEffect(() => {
     const u = Storage.getCurrentUser();
     setCurrentUser(u);
-    // Purge any mock stories from browser localStorage immediately
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("flyingo_stories");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          const clean = parsed.filter((s: any) => {
-            const h = (s.authorHandle || "").toLowerCase();
-            return h !== "zephyr_code" && h !== "elena_motion" && h !== "kaelen_audio" && h !== "nova_sync";
-          });
-          localStorage.setItem("flyingo_stories", JSON.stringify(clean));
-          setStories(clean);
-        } catch (e) {
-          setStories(Storage.getStories());
-        }
-      } else {
-        setStories(Storage.getStories());
+    Storage.fetchRemoteUsers();
+
+    // Initial load from local
+    setStories(Storage.getStories());
+
+    // Fetch live stories from Supabase cloud database
+    Storage.fetchRemoteStories().then(fresh => {
+      if (fresh) {
+        setStories(fresh);
       }
-    }
+    });
   }, []);
 
   // Group stories by authorHandle so multiple stories from one user appear grouped together

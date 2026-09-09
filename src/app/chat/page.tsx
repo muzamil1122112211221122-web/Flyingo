@@ -505,9 +505,11 @@ export default function ChatPage() {
     if (!activeConv || !currentUser.handle || isPanicActive) return;
     const channelId = activeConv.isGroup ? activeConv.id : Storage.getDmKey(currentUser.handle, activeConv.handle);
     Storage.setTypingStatus(currentUser.handle, channelId, true);
+    Realtime.sendTyping(channelId, currentUser.handle, true);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       Storage.setTypingStatus(currentUser.handle, channelId, false);
+      Realtime.sendTyping(channelId, currentUser.handle, false);
     }, 3000);
   };
 

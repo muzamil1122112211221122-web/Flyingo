@@ -68,7 +68,7 @@ export default function Home() {
             name: finalName,
             password_hash: password, // For private client custody
             pin_hash: pin,
-            verified: true,
+            verified: false,
           });
 
           if (insertError) {

@@ -410,6 +410,17 @@ export const Storage = {
     // Clear active panic mode for this tab
     sessionStorage.removeItem("flyingo_active_panic_id");
     Storage.registerUser(profile);
+
+    // Hydrate session with latest remote cloud profile
+    Storage.fetchRemoteUsers().then(users => {
+      const fresh = users.find(u => u.handle.toLowerCase() === cleanHandle);
+      if (fresh) {
+        const merged = { ...profile, ...fresh, pin: pin || profile.pin, password: password || profile.password };
+        try {
+          sessionStorage.setItem("flyingo_current_user", JSON.stringify(sanitizeUserForStorage(merged)));
+        } catch (e) {}
+      }
+    }).catch(() => {});
   },
 
   logoutUser: () => {
@@ -539,6 +550,7 @@ export const Storage = {
           pronouns: user.pronouns || "",
           badge: user.verifiedBadge?.enabled ? (user.verifiedBadge.label || user.verifiedBadge.icon) : null,
           customFriendsCount: user.customFriendsCount || "",
+          note: user.note ? { type: user.note.type, text: user.note.text || "", songTitle: user.note.songTitle || "", artist: user.note.artist || "", durationDays: user.note.durationDays, createdAt: user.note.createdAt } : null,
         };
 
         await supabase.from("flyingo_users").upsert(
@@ -572,7 +584,8 @@ export const Storage = {
           let gender = "";
           let pronouns = "";
           let customFriendsCount = "";
-          let verifiedBadge: VerifiedBadge | undefined = dbUser.verified ? { enabled: true, color: "#00daf3", icon: "verified" } : undefined;
+          let verifiedBadge: VerifiedBadge | undefined = undefined;
+          let note: UserNote | undefined = undefined;
 
           if (dbUser.badge_text) {
             try {
@@ -588,7 +601,17 @@ export const Storage = {
                 if (parsed.badge) {
                   verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: parsed.badge };
                 }
-              } else {
+                if (parsed.note) {
+                  note = {
+                    type: parsed.note.type || "text",
+                    text: parsed.note.text || undefined,
+                    songTitle: parsed.note.songTitle || undefined,
+                    artist: parsed.note.artist || undefined,
+                    durationDays: parsed.note.durationDays || 1,
+                    createdAt: parsed.note.createdAt || Date.now(),
+                  };
+                }
+              } else if (dbUser.badge_text !== "null" && dbUser.badge_text !== "") {
                 verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: dbUser.badge_text };
               }
             } catch (e) {}
@@ -608,6 +631,7 @@ export const Storage = {
               pronouns,
               customFriendsCount,
               verifiedBadge,
+              note,
               createdAt: new Date(dbUser.created_at || Date.now()).getTime(),
             });
           } else {
@@ -618,7 +642,8 @@ export const Storage = {
             if (gender) found.gender = gender;
             if (pronouns) found.pronouns = pronouns;
             if (customFriendsCount) found.customFriendsCount = customFriendsCount;
-            if (dbUser.verified) found.verifiedBadge = verifiedBadge;
+            if (note) found.note = note;
+            if (verifiedBadge) found.verifiedBadge = verifiedBadge;
           }
         });
         if (typeof window !== "undefined") {
@@ -1070,7 +1095,93 @@ export const Storage = {
     if (typeof window !== "undefined") {
       localStorage.setItem("flyingo_stories", JSON.stringify(updated));
     }
+
+    // Save to Supabase cloud table
+    try {
+      const textStyle = JSON.stringify({
+        font: newStory.fontFamily || "sans",
+        bold: newStory.isBold || false,
+        italic: newStory.isItalic || false,
+        underline: newStory.isUnderline || false,
+        type: newStory.type || "text",
+        textXOffset: newStory.textXOffset || 0,
+        textYOffset: newStory.textYOffset || 0,
+        userId: newStory.userId || `u_${newStory.authorHandle}`,
+      });
+
+      supabase
+        .from("flyingo_stories")
+        .upsert({
+          id: newStory.id,
+          author_handle: newStory.authorHandle.toLowerCase(),
+          author_name: newStory.authorName,
+          author_avatar: newStory.authorAvatar || "/default-avatar.jpg",
+          bg_color: newStory.background || "#131b2e",
+          text_content: newStory.content || null,
+          text_style: textStyle,
+          media_url: (newStory.mediaUrl || "").startsWith("data:image") ? null : (newStory.mediaUrl || null),
+          duration_seconds: newStory.durationSeconds || 15,
+          created_time: newStory.createdTime,
+        })
+        .then(() => {}, () => {});
+    } catch (e) {}
+
     return newStory;
+  },
+
+  fetchRemoteStories: async (): Promise<FlamingooStory[]> => {
+    try {
+      const { data, error } = await supabase
+        .from("flyingo_stories")
+        .select("*")
+        .order("created_time", { ascending: false })
+        .limit(100);
+
+      if (!error && data && data.length > 0) {
+        const localStories = Storage.getStories();
+        const remoteStories: FlamingooStory[] = data.map((row: any) => {
+          let styleObj: any = {};
+          try {
+            if (row.text_style) styleObj = JSON.parse(row.text_style);
+          } catch (e) {}
+
+          return {
+            id: row.id,
+            userId: styleObj.userId || `u_${row.author_handle}`,
+            authorName: row.author_name || `@${row.author_handle}`,
+            authorHandle: row.author_handle,
+            authorAvatar: row.author_avatar || "/default-avatar.jpg",
+            type: styleObj.type || (row.media_url ? "image" : "text"),
+            content: row.text_content || undefined,
+            mediaUrl: row.media_url || undefined,
+            background: row.bg_color || "#131b2e",
+            fontFamily: styleObj.font || "sans",
+            isBold: styleObj.bold || false,
+            isItalic: styleObj.italic || false,
+            isUnderline: styleObj.underline || false,
+            textXOffset: styleObj.textXOffset || 0,
+            textYOffset: styleObj.textYOffset || 0,
+            timestamp: "Just now",
+            createdTime: Number(row.created_time) || Date.now(),
+            durationSeconds: row.duration_seconds || 15,
+            likes: 0,
+            viewers: [],
+          };
+        });
+
+        // Merge: remote + local
+        const merged = [...remoteStories];
+        localStories.forEach(ls => {
+          if (!merged.find(rs => rs.id === ls.id)) merged.push(ls);
+        });
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("flyingo_stories", JSON.stringify(merged));
+        }
+        return merged;
+      }
+    } catch (e) {}
+    return Storage.getStories();
   },
 
   recordStoryView: (storyId: string, viewerHandle: string) => {
