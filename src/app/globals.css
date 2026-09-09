@@ -1,26 +1,146 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: #faf8ff;
+  --color-surface: #faf8ff;
+  --color-surface-dim: #d2d9f4;
+  --color-surface-bright: #faf8ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f3ff;
+  --color-surface-container: #eaedff;
+  --color-surface-container-high: #e2e7ff;
+  --color-surface-container-highest: #dae2fd;
+  
+  --color-on-surface: #131b2e;
+  --color-on-surface-variant: #5a4043;
+  --color-inverse-surface: #283044;
+  --color-inverse-on-surface: #eef0ff;
+  
+  --color-outline: #8e6f72;
+  --color-outline-variant: #e2bec0;
+  
+  --color-primary: #FF4B72;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #da2e59;
+  --color-on-primary-container: #fffbff;
+  
+  --color-secondary: #7928CA;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #974ce9;
+  --color-on-secondary-container: #fffbff;
+  
+  --color-tertiary: #00E5FF;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #008190;
+  --color-on-tertiary-container: #f7feff;
+  
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  
+  --color-neutral: #0F172A;
+  
+  --spacing-message-max-width: 620px;
+  --spacing-info-drawer-width: 340px;
+  --spacing-space-20: 1.25rem;
+  --spacing-space-12: 0.75rem;
+  --spacing-sidebar-rail-width: 72px;
+  --spacing-space-32: 2rem;
+  --spacing-space-6: 0.375rem;
+  --spacing-space-2: 0.125rem;
+  --spacing-space-4: 0.25rem;
+  --spacing-space-8: 0.5rem;
+  --spacing-space-16: 1rem;
+  --spacing-chat-list-width: 360px;
+  --spacing-space-24: 1.5rem;
+
+  --font-caption: Inter, sans-serif;
+  --font-body-lg: Inter, sans-serif;
+  --font-body-sm: Inter, sans-serif;
+  --font-headline-md: 'Plus Jakarta Sans', sans-serif;
+  --font-headline-sm: 'Plus Jakarta Sans', sans-serif;
+  --font-label-sm: 'Plus Jakarta Sans', sans-serif;
+  --font-display-lg: 'Plus Jakarta Sans', sans-serif;
+  --font-body-md: Inter, sans-serif;
+  --font-label-md: 'Plus Jakarta Sans', sans-serif;
+  --font-title-md: 'Plus Jakarta Sans', sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--color-surface);
+    color: var(--color-on-surface);
+    font-family: var(--font-body-md);
+  }
+  
+  body {
+    overscroll-behavior: none;
+  }
+  
+  main > :first-child {
+    margin-top: 0 !important;
+  }
+  
+  main > :last-child {
+    margin-bottom: 0 !important;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  ::-webkit-scrollbar {
+    display: none;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+html.dark {
+  --color-background: #0d1117;
+  --color-surface: #0d1117;
+  --color-surface-dim: #161b22;
+  --color-surface-bright: #21262d;
+  --color-surface-container-lowest: #161b22;
+  --color-surface-container-low: #1c2128;
+  --color-surface-container: #22272e;
+  --color-surface-container-high: #2d333b;
+  --color-surface-container-highest: #373e47;
+  --color-on-surface: #ffffff;
+  --color-on-surface-variant: #e6edf3;
+  --color-inverse-surface: #f0f6fc;
+  --color-inverse-on-surface: #0d1117;
+  --color-outline: #8b949e;
+  --color-outline-variant: #30363d;
+}
+
+/* Ensure Material Symbols icons in dark mode default to white */
+html.dark .material-symbols-outlined {
+  color: #ffffff;
+}
+
+/* Inherit color when inside buttons with primary, error or active accents */
+html.dark .bg-primary .material-symbols-outlined,
+html.dark .bg-error .material-symbols-outlined,
+html.dark .text-primary .material-symbols-outlined,
+html.dark .text-error .material-symbols-outlined,
+html.dark .text-tertiary .material-symbols-outlined,
+html.dark .text-secondary .material-symbols-outlined {
+  color: inherit;
+}
+
+/* Make all navigation PNG icons pure crisp white in dark theme */
+html.dark img[src*="/icons/nav-"] {
+  filter: brightness(0) invert(1) !important;
+}
+
+/* Completely remove Next.js dev indicator floating 'N' icon */
+nextjs-portal,
+[data-nextjs-toast],
+[data-nextjs-dialog-overlay],
+div[data-nextjs-dev-tools-button],
+div[data-nextjs-dev-tools] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
