@@ -530,11 +530,22 @@ export const Storage = {
 
     try {
       if (user.handle && user.handle !== "guest") {
+        const profilePayload = {
+          avatar: user.avatar || "/default-avatar.jpg",
+          bio: user.bio || "",
+          link: user.link || "",
+          links: user.links || [],
+          gender: user.gender || "",
+          pronouns: user.pronouns || "",
+          badge: user.verifiedBadge?.enabled ? (user.verifiedBadge.label || user.verifiedBadge.icon) : null,
+          customFriendsCount: user.customFriendsCount || "",
+        };
+
         await supabase.from("flyingo_users").upsert(
           {
             handle: user.handle.toLowerCase(),
             name: user.name || user.handle,
-            badge_text: user.verifiedBadge?.enabled ? (user.verifiedBadge.label || user.verifiedBadge.icon) : null,
+            badge_text: JSON.stringify(profilePayload),
             verified: !!user.verifiedBadge?.enabled,
           },
           { onConflict: "handle" }
@@ -553,23 +564,75 @@ export const Storage = {
         const merged = [...localUsers];
         data.forEach(dbUser => {
           if (MOCK_HANDLES.includes(dbUser.handle.toLowerCase())) return;
+
+          let avatar = "/default-avatar.jpg";
+          let bio = "";
+          let link = "";
+          let links: Array<{ id: string; title: string; url: string }> = [];
+          let gender = "";
+          let pronouns = "";
+          let customFriendsCount = "";
+          let verifiedBadge: VerifiedBadge | undefined = dbUser.verified ? { enabled: true, color: "#00daf3", icon: "verified" } : undefined;
+
+          if (dbUser.badge_text) {
+            try {
+              if (dbUser.badge_text.startsWith("{")) {
+                const parsed = JSON.parse(dbUser.badge_text);
+                if (parsed.avatar) avatar = parsed.avatar;
+                if (parsed.bio) bio = parsed.bio;
+                if (parsed.link) link = parsed.link;
+                if (Array.isArray(parsed.links)) links = parsed.links;
+                if (parsed.gender) gender = parsed.gender;
+                if (parsed.pronouns) pronouns = parsed.pronouns;
+                if (parsed.customFriendsCount) customFriendsCount = parsed.customFriendsCount;
+                if (parsed.badge) {
+                  verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: parsed.badge };
+                }
+              } else {
+                verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: dbUser.badge_text };
+              }
+            } catch (e) {}
+          }
+
           const found = merged.find(u => u.handle.toLowerCase() === dbUser.handle.toLowerCase());
           if (!found) {
             merged.push({
               id: dbUser.id || `u_${dbUser.handle}`,
               handle: dbUser.handle,
               name: dbUser.name || dbUser.handle,
-              avatar: "/default-avatar.jpg",
-              bio: "",
-              verifiedBadge: dbUser.verified ? { enabled: true, color: "#00daf3", icon: "verified" } : undefined,
+              avatar,
+              bio,
+              link,
+              links,
+              gender,
+              pronouns,
+              customFriendsCount,
+              verifiedBadge,
               createdAt: new Date(dbUser.created_at || Date.now()).getTime(),
             });
-          } else if (dbUser.verified && !found.verifiedBadge?.enabled) {
-            found.verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified" };
+          } else {
+            if (avatar && avatar !== "/default-avatar.jpg") found.avatar = avatar;
+            if (bio) found.bio = bio;
+            if (link) found.link = link;
+            if (links.length > 0) found.links = links;
+            if (gender) found.gender = gender;
+            if (pronouns) found.pronouns = pronouns;
+            if (customFriendsCount) found.customFriendsCount = customFriendsCount;
+            if (dbUser.verified) found.verifiedBadge = verifiedBadge;
           }
         });
         if (typeof window !== "undefined") {
           localStorage.setItem("flyingo_all_users", JSON.stringify(merged));
+
+          // Also update active session if current user exists in cloud
+          const cur = Storage.getCurrentUser();
+          if (cur && cur.handle) {
+            const remoteCurrent = merged.find(u => u.handle.toLowerCase() === cur.handle.toLowerCase());
+            if (remoteCurrent) {
+              const updatedSession = { ...cur, ...remoteCurrent };
+              sessionStorage.setItem("flyingo_current_user", JSON.stringify(sanitizeUserForStorage(updatedSession)));
+            }
+          }
         }
         return merged;
       }

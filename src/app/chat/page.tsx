@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { Storage, UserProfile, ChatCustomization, FriendRequest, PanicModeConfig, GroupChat, CallSession } from "@/lib/storage";
+import { Realtime } from "@/lib/realtime";
 import { INSTAGRAM_GIFS, GIF_CATEGORIES, GifItem } from "@/lib/gifs";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import AudioPlayer from "@/components/AudioPlayer";
@@ -180,6 +181,7 @@ export default function ChatPage() {
       setAllUsers(users.filter(u => u.handle.toLowerCase() !== user.handle.toLowerCase()));
     });
     if (user.handle) {
+      Realtime.init(user);
       setFriendRequests(Storage.getFriendRequests(user.handle));
       setGroups(Storage.getGroups(user.handle));
       const activePanic = Storage.getActivePanicMode();
@@ -198,6 +200,8 @@ export default function ChatPage() {
   // Real-time synchronization across browser tabs and background updates
   useEffect(() => {
     if (!currentUser.handle) return;
+
+    Realtime.init(currentUser);
 
     const syncChats = () => {
       if (isPanicActive) return;
@@ -267,10 +271,22 @@ export default function ChatPage() {
       Storage.pingOnline(currentUser.handle);
     }, 30000);
 
+    // Realtime cross-device listeners
+    const unsubMsg = Realtime.onMessage(() => syncChats());
+    const unsubReq = Realtime.onFriendRequest(() => syncChats());
+    const unsubPres = Realtime.onPresence(() => setSyncTick(t => t + 1));
+    const unsubTyping = Realtime.onTyping(() => syncChats());
+    const unsubCall = Realtime.onCall(() => syncChats());
+
     return () => {
       window.removeEventListener("storage", handleStorage);
       clearInterval(interval);
       clearInterval(presenceInterval);
+      unsubMsg();
+      unsubReq();
+      unsubPres();
+      unsubTyping();
+      unsubCall();
     };
   }, [currentUser.handle, isPanicActive, activeConvId]);
 
@@ -460,8 +476,10 @@ export default function ChatPage() {
     } else {
       if (activeConvForSend.isGroup) {
         Storage.saveGroupMessage(activeConvId, newMsg as any, activeConvForSend.members || []);
+        Realtime.sendGroupMessage(activeConvId, newMsg as any, activeConvForSend.members || []);
       } else if (activeConvForSend.handle) {
         Storage.saveDirectMessage(currentUser, activeConvForSend.handle, newMsg as any);
+        Realtime.sendDirectMessage(currentUser, activeConvForSend.handle, newMsg as any);
       }
       // Refresh conversation list so sidebar shows updated preview & time
       const saved = Storage.getSavedConversations(currentUser.handle);
@@ -472,6 +490,7 @@ export default function ChatPage() {
     if (activeConv && currentUser.handle) {
       const channelId = activeConv.isGroup ? activeConv.id : Storage.getDmKey(currentUser.handle, activeConv.handle);
       Storage.setTypingStatus(currentUser.handle, channelId, false);
+      Realtime.sendTyping(channelId, currentUser.handle, false);
     }
 
     setMessageText("");
@@ -692,15 +711,26 @@ export default function ChatPage() {
   };
 
   const handleSendFriendRequest = (targetHandle: string) => {
-    const success = Storage.sendFriendRequest(currentUser, targetHandle);
+    const cleanTo = targetHandle.replace(/^@/, "").toLowerCase();
+    const success = Storage.sendFriendRequest(currentUser, cleanTo);
     if (success) {
-      setRequestSentToast(`✓ Friend request sent to @${targetHandle}!`);
+      Realtime.sendFriendRequest({
+        id: `freq_${Date.now()}`,
+        fromHandle: currentUser.handle,
+        fromName: currentUser.name || `@${currentUser.handle}`,
+        fromAvatar: currentUser.avatar || "/default-avatar.jpg",
+        toHandle: cleanTo,
+        status: "pending",
+        createdAt: Date.now(),
+      });
+      setRequestSentToast(`✓ Friend request sent to @${cleanTo}!`);
       setTimeout(() => setRequestSentToast(""), 3000);
     }
   };
 
   const handleAcceptRequest = (req: FriendRequest) => {
     Storage.respondFriendRequest(req.id, "accepted");
+    Realtime.sendFriendRequestResponse(req.fromHandle, currentUser.handle, "accepted");
     setFriendRequests(Storage.getFriendRequests(currentUser.handle));
     // Start chat with requester (find from allUsers or construct minimal UserProfile fallback)
     let found = allUsers.find(u => u.handle.toLowerCase() === req.fromHandle.toLowerCase());
@@ -719,6 +749,7 @@ export default function ChatPage() {
 
   const handleDeclineRequest = (req: FriendRequest) => {
     Storage.respondFriendRequest(req.id, "declined");
+    Realtime.sendFriendRequestResponse(req.fromHandle, currentUser.handle, "declined");
     setFriendRequests(Storage.getFriendRequests(currentUser.handle));
   };
 
@@ -978,7 +1009,7 @@ export default function ChatPage() {
                         className="w-11 h-11 rounded-2xl object-cover"
                       />
                       {!conv.isGroup && (
-                        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-surface-container-lowest ${Storage.isOnline(conv.handle) ? "bg-green-500" : "bg-gray-400"}`} />
+                        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-surface-container-lowest ${Realtime.isOnline(conv.handle) ? "bg-green-500" : "bg-gray-400"}`} />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1229,8 +1260,8 @@ export default function ChatPage() {
                       `${activeConv.members?.length || 0} members • Tap to view info`
                     ) : (
                       <span className="flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-full inline-block ${Storage.isOnline(activeConv.handle) ? "bg-green-500" : "bg-gray-400"}`} />
-                        {Storage.isOnline(activeConv.handle) ? "Online" : "Offline"}
+                        <span className={`w-1.5 h-1.5 rounded-full inline-block ${Realtime.isOnline(activeConv.handle) ? "bg-green-500" : "bg-gray-400"}`} />
+                        {Realtime.isOnline(activeConv.handle) ? "Online" : "Offline"}
                         <span className="text-on-surface-variant"> • @{activeConv.handle}</span>
                       </span>
                     )}
