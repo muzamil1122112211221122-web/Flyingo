@@ -32,6 +32,7 @@ export interface UserProfile {
   handle: string;
   name: string;
   avatar?: string;
+  borderColor?: string;
   bio?: string;
   link?: string;
   links?: UserLink[]; // Multiple custom links support
@@ -117,6 +118,7 @@ export interface ChatCustomization {
   sentTheme: string;
   receivedTheme: string;
   wallpaper: string;
+  customWallpaperUrl?: string;
   fontSize: number;
   sentOpacity: number;
   themeMode?: "light" | "dark";

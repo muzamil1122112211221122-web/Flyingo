@@ -92,7 +92,7 @@ export default function AudioPlayer({ src, durationSeconds, isMe }: AudioPlayerP
         className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 cursor-pointer transition-all shadow-sm ${
           isMe
             ? "bg-white/20 hover:bg-white/30 text-white"
-            : "bg-primary text-white hover:bg-primary/90"
+            : "bg-user-gradient text-white hover:opacity-90 shadow-[#003973]/20"
         }`}
       >
         <span className="material-symbols-outlined text-[24px]">
@@ -117,7 +117,7 @@ export default function AudioPlayer({ src, durationSeconds, isMe }: AudioPlayerP
                       ? "bg-white"
                       : "bg-white/35"
                     : isPlayed
-                    ? "bg-primary"
+                    ? "bg-[#003973]"
                     : "bg-on-surface-variant/25"
                 }`}
               />

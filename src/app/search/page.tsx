@@ -48,7 +48,7 @@ export default function SearchPage() {
   return (
     <div className="flex h-screen overflow-hidden bg-surface text-on-surface">
       <Sidebar />
-      <div className="md:ml-[72px] ml-0 flex-1 p-4 md:p-8 lg:p-12 flex flex-col max-w-5xl mx-auto w-full overflow-y-auto relative pb-24 md:pb-8">
+      <div className="md:ml-[86px] ml-0 flex-1 p-4 md:p-8 lg:p-12 flex flex-col max-w-5xl mx-auto w-full overflow-y-auto relative pb-24 md:pb-8">
         
         {toastMessage && (
           <motion.div
@@ -141,7 +141,7 @@ export default function SearchPage() {
                       Add
                     </button>
                     <motion.button
-                      whileHover={{ scale: 1.05 }}
+                      whileHover={{ scale: 1.09 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => {
                         router.push(`/chat?user=${encodeURIComponent(user.handle)}`);

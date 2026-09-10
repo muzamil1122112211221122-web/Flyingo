@@ -138,19 +138,20 @@ export default function Home() {
         {/* Left Info Deck */}
         <div className="lg:col-span-5 flex flex-col justify-between gap-8 rounded-3xl bg-surface-container-low/70 backdrop-blur-2xl p-8 sm:p-10 shadow-xl shadow-surface-dim/40 relative overflow-hidden">
           <div>
-            <div className="inline-flex items-center gap-3 px-4 py-2 rounded-2xl bg-surface-container-lowest/80 backdrop-blur-md shadow-sm">
-              <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
-                <Shield className="text-primary" size={20} />
+            {/* Logo + Name — vertical stack */}
+            <div className="flex flex-col items-start gap-3 mb-8">
+              <div className="w-20 h-20 rounded-full overflow-hidden shadow-xl shadow-[#003973]/30 flex-shrink-0">
+                <img src="/logo.png" alt="Flyingo" className="w-full h-full object-cover" />
               </div>
               <div>
-                <div className="font-headline-sm text-headline-sm font-semibold flex items-center gap-1.5">
+                <div className="font-display-lg text-[2rem] font-bold tracking-tight text-on-surface leading-none">
                   Flyingo
-                  <span className="material-symbols-outlined text-[16px] text-tertiary">verified</span>
                 </div>
-                <p className="font-caption text-caption text-on-surface-variant">Desktop v4.12.0 • Cloud Sync</p>
+                <p className="font-body-sm text-on-surface-variant mt-1 text-sm">Private Messenger</p>
               </div>
             </div>
-            <div className="mt-8">
+
+            <div>
               <h1 className="font-display-lg text-display-lg font-bold tracking-tight text-on-surface">
                 Private, End-to-End <br />
                 <span className="bg-gradient-to-r from-primary via-primary-container to-secondary bg-clip-text text-transparent">
@@ -162,11 +163,6 @@ export default function Home() {
               </p>
             </div>
           </div>
-
-          <div className="p-4 rounded-2xl bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant/20 flex items-center gap-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-tertiary animate-ping" />
-            <span className="font-caption text-on-surface-variant text-[11px]">Database node connected: PostgreSQL E2EE</span>
-          </div>
         </div>
 
         {/* Right Auth Gate */}
@@ -174,7 +170,7 @@ export default function Home() {
           <div className="flex items-center justify-between pb-8">
             <div className="inline-flex p-1.5 rounded-2xl bg-surface-container-high/60 backdrop-blur-md">
               <motion.button
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.09 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => { setAuthMode("login"); setStep(1); setAuthError(""); }}
                 className={`px-5 py-2 rounded-xl font-label-md font-semibold transition-all ${
@@ -184,7 +180,7 @@ export default function Home() {
                 Sign In
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.09 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => { setAuthMode("signup"); setStep(1); setAuthError(""); }}
                 className={`px-5 py-2 rounded-xl font-label-md font-semibold transition-all ${
@@ -214,7 +210,7 @@ export default function Home() {
                 <div
                   key={num}
                   className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
-                    step === num ? "bg-primary text-white shadow-sm" : "bg-transparent text-on-surface-variant"
+                    step === num ? "bg-user-gradient text-white shadow-sm" : "bg-transparent text-on-surface-variant"
                   }`}
                 >
                   <span className="font-caption font-bold">{num}</span>
@@ -275,7 +271,7 @@ export default function Home() {
                   </div>
 
                   <motion.button
-                    whileHover={handle ? { scale: 1.02 } : {}}
+                    whileHover={handle ? { scale: 1.09 } : {}}
                     whileTap={handle ? { scale: 0.98 } : {}}
                     onClick={handleNext}
                     disabled={!handle}
@@ -320,7 +316,7 @@ export default function Home() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-2">
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
+                      whileHover={{ scale: 1.09 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setStep(1)}
                       className="py-3 rounded-2xl bg-surface-container-high text-on-surface font-title-md font-semibold cursor-pointer"
@@ -328,7 +324,7 @@ export default function Home() {
                       Back
                     </motion.button>
                     <motion.button
-                      whileHover={password ? { scale: 1.02 } : {}}
+                      whileHover={password ? { scale: 1.09 } : {}}
                       whileTap={password ? { scale: 0.98 } : {}}
                       onClick={handleNext}
                       disabled={!password}
@@ -388,7 +384,7 @@ export default function Home() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
+                      whileHover={{ scale: 1.09 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setStep(2)}
                       className="py-3 rounded-2xl bg-surface-container-high text-on-surface font-title-md font-semibold cursor-pointer"
@@ -396,7 +392,7 @@ export default function Home() {
                       Back
                     </motion.button>
                     <motion.button
-                      whileHover={pin.length >= 4 && !isLoading ? { scale: 1.02 } : {}}
+                      whileHover={pin.length >= 4 && !isLoading ? { scale: 1.09 } : {}}
                       whileTap={pin.length >= 4 && !isLoading ? { scale: 0.98 } : {}}
                       onClick={handleNext}
                       disabled={pin.length < 4 || isLoading}

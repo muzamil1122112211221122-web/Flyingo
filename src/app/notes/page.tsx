@@ -247,7 +247,7 @@ export default function NotesPage() {
     <div className="min-h-screen bg-surface flex text-on-surface overflow-x-hidden">
       <Sidebar />
 
-      <div className="md:ml-[72px] ml-0 flex-1 flex flex-col p-4 md:p-6 lg:p-10 max-w-6xl mx-auto w-full pb-24 md:pb-8">
+      <div className="md:ml-[86px] ml-0 flex-1 flex flex-col p-4 md:p-6 lg:p-10 max-w-6xl mx-auto w-full pb-24 md:pb-8">
         {/* Page Header */}
         <div className="flex items-center justify-between gap-4 mb-8">
           <div>
@@ -261,7 +261,7 @@ export default function NotesPage() {
           </div>
 
           <motion.button
-            whileHover={{ scale: 1.05 }}
+            whileHover={{ scale: 1.09 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowNoteModal(true)}
             className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white font-title-md font-semibold flex items-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
@@ -391,7 +391,7 @@ export default function NotesPage() {
                 return (
                   <motion.div
                     key={user.handle}
-                    whileHover={{ scale: 1.02 }}
+                    whileHover={{ scale: 1.09 }}
                     className="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex flex-col gap-3 shadow-xs relative"
                   >
                     <div className="flex items-center gap-3">
@@ -649,7 +649,7 @@ export default function NotesPage() {
                   <button
                     type="button"
                     onClick={handleClearNote}
-                    className="flex-1 py-3 rounded-2xl border border-error/30 text-error font-title-md font-bold text-[13px] hover:bg-error/5 transition-colors cursor-pointer"
+                    className="flex-1 py-3 rounded-2xl border border-[#003973]/30 text-[#003973] font-title-md font-bold text-[13px] hover:bg-[#003973]/5 transition-colors cursor-pointer"
                   >
                     Delete
                   </button>
@@ -657,7 +657,7 @@ export default function NotesPage() {
                 <button
                   type="button"
                   onClick={handleSaveNote}
-                  className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white font-title-md font-bold text-[13px] shadow-md shadow-primary/20 cursor-pointer"
+                  className="flex-1 py-3 rounded-2xl bg-user-gradient text-white font-title-md font-bold text-[13px] shadow-md shadow-[#003973]/20 cursor-pointer"
                 >
                   Save Note
                 </button>

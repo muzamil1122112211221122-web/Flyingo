@@ -1,13 +1,32 @@
-import type { Metadata } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
+import MotionProvider from "@/components/MotionProvider";
+import CustomTooltip from "@/components/CustomTooltip";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-plus-jakarta-sans" });
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-dm-sans",
+});
 
 export const metadata: Metadata = {
   title: "Flyingo",
   description: "Private, End-to-End Encrypted Messenger",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+    shortcut: "/logo.png",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({
@@ -38,10 +57,11 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        className={`${inter.variable} ${plusJakartaSans.variable} antialiased`}
-      >
-        {children}
+      <body className={`${dmSans.variable} antialiased`}>
+        <MotionProvider>
+          <CustomTooltip />
+          {children}
+        </MotionProvider>
       </body>
     </html>
   );

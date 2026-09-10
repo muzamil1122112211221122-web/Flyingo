@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Perfect Lemonade — user/received chat message bubbles */
+@font-face {
+  font-family: 'Perfect Lemonade';
+  src: url('/fonts/PerfectLemonade.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
@@ -21,10 +30,10 @@
   --color-outline: #8e6f72;
   --color-outline-variant: #e2bec0;
   
-  --color-primary: #FF4B72;
+  --color-primary: #003973;
   --color-on-primary: #ffffff;
-  --color-primary-container: #da2e59;
-  --color-on-primary-container: #fffbff;
+  --color-primary-container: #e5e5be;
+  --color-on-primary-container: #001f3f;
   
   --color-secondary: #7928CA;
   --color-on-secondary: #ffffff;
@@ -42,6 +51,14 @@
   --color-on-error-container: #93000a;
   
   --color-neutral: #0F172A;
+
+  /* ── GLOBAL CURVES: Increased border-radius across the entire app ── */
+  --radius-sm: 0.5rem;      /* was 0.125rem → used for tiny chips */
+  --radius-md: 0.75rem;     /* was 0.375rem */
+  --radius-lg: 1rem;        /* was 0.5rem  → rounded-lg */
+  --radius-xl: 1.25rem;     /* was 0.75rem → rounded-xl  */
+  --radius-2xl: 1.5rem;     /* was 1rem    → rounded-2xl */
+  --radius-3xl: 2rem;       /* was 1.5rem  → rounded-3xl */
   
   --spacing-message-max-width: 620px;
   --spacing-info-drawer-width: 340px;
@@ -57,16 +74,17 @@
   --spacing-chat-list-width: 360px;
   --spacing-space-24: 1.5rem;
 
-  --font-caption: Inter, sans-serif;
-  --font-body-lg: Inter, sans-serif;
-  --font-body-sm: Inter, sans-serif;
-  --font-headline-md: 'Plus Jakarta Sans', sans-serif;
-  --font-headline-sm: 'Plus Jakarta Sans', sans-serif;
-  --font-label-sm: 'Plus Jakarta Sans', sans-serif;
-  --font-display-lg: 'Plus Jakarta Sans', sans-serif;
-  --font-body-md: Inter, sans-serif;
-  --font-label-md: 'Plus Jakarta Sans', sans-serif;
-  --font-title-md: 'Plus Jakarta Sans', sans-serif;
+  /* ── GLOBAL FONT: DM Sans for all text roles ── */
+  --font-caption:      var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-body-lg:      var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-body-sm:      var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-headline-md:  var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-headline-sm:  var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-label-sm:     var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-display-lg:   var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-body-md:      var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-label-md:     var(--font-dm-sans), 'DM Sans', sans-serif;
+  --font-title-md:     var(--font-dm-sans), 'DM Sans', sans-serif;
 }
 
 @layer base {
@@ -75,7 +93,7 @@
     padding: 0;
     background-color: var(--color-surface);
     color: var(--color-on-surface);
-    font-family: var(--font-body-md);
+    font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
   }
   
   body {
@@ -143,4 +161,32 @@ div[data-nextjs-dev-tools] {
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+.bg-user-gradient {
+  background: linear-gradient(135deg, #003973 0%, #e5e5be 100%) !important;
+}
+
+.bg-user-gradient-r {
+  background: linear-gradient(to right, #003973 0%, #e5e5be 100%) !important;
+}
+
+.text-user-gradient {
+  background: linear-gradient(135deg, #003973 0%, #e5e5be 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── SMOOTH ANIMATIONS: GPU compositing layer hint for all interactive elements ── */
+button, a, [role="button"], [data-framer-component-type] {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* ── CHAT BUBBLE FONT: Perfect Lemonade — applied only to message text ── */
+.font-chat-bubble {
+  font-family: 'Perfect Lemonade', cursive !important;
+  font-size: 1.05rem;
+  line-height: 1.5;
 }

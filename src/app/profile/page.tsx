@@ -25,6 +25,7 @@ export default function ProfilePage() {
   const [profileSavedToast, setProfileSavedToast] = useState(false);
   const [userStoriesCount, setUserStoriesCount] = useState(0);
   const [verifiedBadge, setVerifiedBadge] = useState<{ enabled: boolean; color: string; icon: string; label?: string } | undefined>(undefined);
+  const [isEditing, setIsEditing] = useState(false);
 
   // ── Crop & Move DP Modal State ──
   const [showCropModal, setShowCropModal] = useState(false);
@@ -54,6 +55,7 @@ export default function ProfilePage() {
       setHandle(u.handle || "");
       setBio(u.bio || "");
       setAvatar(u.avatar || "/default-avatar.jpg");
+      if (u.borderColor) setBorderColor(u.borderColor);
       setGender(u.gender || "");
       setPronouns(u.pronouns || "");
       setVerifiedBadge(u.verifiedBadge);
@@ -201,6 +203,7 @@ export default function ProfilePage() {
       link: cleanLinks[0]?.url || "",
       links: cleanLinks,
       avatar: avatar || "/default-avatar.jpg",
+      borderColor,
       gender: gender.trim(),
       pronouns: pronouns.trim(),
       note: currentNote || Storage.getRealCurrentUser().note || undefined,
@@ -208,7 +211,10 @@ export default function ProfilePage() {
 
     Storage.setCurrentUser(updatedData);
     setProfileSavedToast(true);
-    setTimeout(() => setProfileSavedToast(false), 2500);
+    setTimeout(() => {
+      setProfileSavedToast(false);
+      setIsEditing(false);
+    }, 1200);
   };
 
   // ── Note Audio Upload Handler ──
@@ -370,35 +376,55 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-surface flex text-on-surface">
-      <Sidebar />
+      <Sidebar hideBottomNav={isEditing} />
 
-      <div className="md:ml-[72px] ml-0 flex-1 relative overflow-hidden flex flex-col items-center pb-24 md:pb-8">
+      <div className="md:ml-[86px] ml-0 flex-1 relative flex flex-col items-center min-h-screen pb-32 md:pb-12 w-full">
         {/* Ambient background */}
         <div className="absolute -top-40 -left-20 w-96 h-96 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
         <div className="absolute top-1/2 -right-20 w-96 h-96 rounded-full bg-secondary/10 blur-3xl pointer-events-none" />
 
-        {/* Main Grid */}
-        <div className="relative z-10 w-full max-w-7xl mx-auto p-6 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start h-full overflow-y-auto">
-          
-          {/* ================= LEFT PANE: IDENTITY CARD ================= */}
-          <div className="lg:col-span-5 flex flex-col gap-6">
-            
-            {/* Primary Identity Card */}
-            <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-primary via-primary-container to-secondary" />
-              
-              <div className="flex items-center justify-between mb-5 pt-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-2xl bg-surface-container flex items-center justify-center font-bold text-primary shadow-sm overflow-hidden p-1">
-                    <img src="/flyingo-logo.png" alt="Flyingo" className="w-full h-full object-cover rounded-xl" />
+        {/* Main Content Area: View Mode vs Edit Mode */}
+        <div className="relative z-10 w-full max-w-5xl mx-auto p-4 md:p-8 h-full overflow-y-auto">
+          <AnimatePresence mode="wait">
+            {!isEditing ? (
+              /* ================= VIEW MODE ================= */
+              <motion.div
+                key="profile-view"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="w-full max-w-2xl mx-auto flex flex-col gap-6"
+              >
+                {/* Primary Identity Card */}
+                <div className="bg-surface-container-lowest rounded-3xl p-6 md:p-8 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-primary via-primary-container to-secondary" />
+                  
+                  <div className="flex items-center justify-between mb-5 pt-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-2xl bg-surface-container flex items-center justify-center font-bold text-primary shadow-sm overflow-hidden p-1">
+                        <img src="/logo.png" alt="Flyingo" className="w-full h-full object-cover rounded-xl" />
+                      </div>
+                      <div>
+                        <span className="font-label-md uppercase tracking-wider font-bold block text-xs">Flyingo ID</span>
+                        <span className="font-caption text-on-surface-variant text-[11px] flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" /> Profile Active
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* ✏️ PENCIL BUTTON TO OPEN EDIT MODE */}
+                    <motion.button
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={() => setIsEditing(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-user-gradient text-white font-label-md text-xs font-semibold shadow-md shadow-[#003973]/25 cursor-pointer hover:opacity-95 transition-all"
+                      title="Edit Profile"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">edit</span>
+                      <span>Edit Profile</span>
+                    </motion.button>
                   </div>
-                  <span className="font-label-md uppercase tracking-wider font-bold">Flyingo ID</span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 text-primary rounded-full font-label-sm">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                  Profile Active
-                </div>
-              </div>
 
               {/* Avatar with Cute Instagram Thought Bubble Note (Text + Emojis + Music) */}
               <div className="flex flex-col items-center text-center relative">
@@ -453,11 +479,11 @@ export default function ProfilePage() {
                   )}
                 </AnimatePresence>
 
-                {/* Avatar with click-to-upload */}
+                {/* Avatar with click-to-edit */}
                 <div 
                   className="relative mb-4 group cursor-pointer" 
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Click to change and reposition profile picture"
+                  onClick={() => setIsEditing(true)}
+                  title="Click to edit profile"
                 >
                   <div 
                     className="relative w-28 h-28 rounded-full overflow-hidden p-1 shadow-md transition-all group-hover:scale-105"
@@ -468,9 +494,9 @@ export default function ProfilePage() {
                       alt={displayName || "Profile"}
                       className="w-full h-full object-cover rounded-full"
                     />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 rounded-full flex flex-col items-center justify-center text-white transition-opacity">
-                      <span className="material-symbols-outlined text-[24px]">crop</span>
-                      <span className="text-[10px] font-semibold">Move / Crop</span>
+                    <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 rounded-full flex flex-col items-center justify-center text-white transition-opacity">
+                      <span className="material-symbols-outlined text-[24px]">edit</span>
+                      <span className="text-[10px] font-semibold">Edit</span>
                     </div>
                   </div>
                   <span className="absolute bottom-1 right-2 flex h-5 w-5">
@@ -545,7 +571,7 @@ export default function ProfilePage() {
                       bio
                     ) : (
                       <button
-                        onClick={() => bioInputRef.current?.focus()}
+                        onClick={() => setIsEditing(true)}
                         className="text-primary hover:underline font-semibold text-[13px] flex items-center gap-1 cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-[16px]">add_circle</span>
@@ -574,7 +600,7 @@ export default function ProfilePage() {
                   ) : (
                     <div className="pt-2 border-t border-surface-container-low">
                       <button
-                        onClick={handleAddLink}
+                        onClick={() => setIsEditing(true)}
                         className="text-primary hover:underline font-semibold text-[13px] flex items-center gap-1 cursor-pointer"
                       >
                         <span className="material-symbols-outlined text-[16px]">add_link</span>
@@ -589,7 +615,7 @@ export default function ProfilePage() {
             {/* Quick Actions */}
             <div className="bg-surface-container-lowest rounded-3xl p-4 shadow-sm flex flex-col gap-2">
               <motion.button 
-                whileHover={{ scale: 1.02 }} 
+                whileHover={{ scale: 1.09 }} 
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowNoteModal(true)}
                 className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-surface-container hover:bg-surface-container-high font-title-md font-medium transition-all cursor-pointer"
@@ -602,7 +628,7 @@ export default function ProfilePage() {
               </motion.button>
               
               <motion.button 
-                whileHover={{ scale: 1.02 }} 
+                whileHover={{ scale: 1.09 }} 
                 whileTap={{ scale: 0.98 }}
                 onClick={() => router.push("/flamingoos")}
                 className="w-full flex items-center justify-between px-4 py-3 rounded-2xl hover:bg-surface-container font-title-md font-medium transition-all group cursor-pointer"
@@ -617,273 +643,350 @@ export default function ProfilePage() {
               </motion.button>
 
               <motion.button 
-                whileHover={{ scale: 1.02 }} 
+                whileHover={{ scale: 1.09 }} 
                 whileTap={{ scale: 0.98 }}
                 onClick={() => {
                   Storage.logoutUser();
                   router.push("/");
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-error/10 hover:bg-error/20 text-error font-title-md font-medium transition-all group cursor-pointer mt-1"
+                className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-[#003973]/10 hover:bg-[#003973]/20 text-[#003973] font-title-md font-medium transition-all group cursor-pointer mt-1"
               >
                 <span className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-error text-[20px] group-hover:translate-x-0.5 transition-transform">logout</span>
+                  <span className="material-symbols-outlined text-[#003973] text-[20px] group-hover:translate-x-0.5 transition-transform">logout</span>
                   Log Out
                 </span>
                 <span className="material-symbols-outlined text-[18px]">chevron_right</span>
               </motion.button>
             </div>
             
-          </div>
+          </motion.div>
+        ) : (
+          /* ================= EDIT MODE: STREAMLINED MOBILE-FIRST ================= */
+          <motion.div
+            key="profile-edit"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="w-full max-w-xl mx-auto flex flex-col gap-4 sm:gap-6 pb-20"
+          >
+            {/* Native-style Top Sticky Navigation Bar */}
+            <div className="sticky top-0 z-30 flex items-center justify-between bg-surface-container-lowest/95 backdrop-blur-xl rounded-2xl p-3 sm:p-4 shadow-sm border border-outline-variant/10">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-3 py-1.5 rounded-xl hover:bg-surface-container text-on-surface-variant font-label-md text-sm font-semibold cursor-pointer transition-colors flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                <span>Cancel</span>
+              </button>
+              
+              <div className="text-center">
+                <h2 className="font-headline-sm font-bold text-on-surface text-sm sm:text-base">Edit Profile</h2>
+              </div>
 
-          {/* ================= RIGHT PANE: BIO STUDIO ================= */}
-          <div className="lg:col-span-7 flex flex-col gap-6">
-            <div className="bg-surface-container-lowest rounded-3xl p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="font-headline-md font-bold tracking-tight text-primary">Bio Studio</h2>
-                  <p className="font-caption text-on-surface-variant mt-1">Customize your public identity</p>
+              <motion.button 
+                whileHover={{ scale: 1.05 }} 
+                whileTap={{ scale: 0.95 }} 
+                onClick={handleSaveProfile}
+                className="px-4 sm:px-5 py-1.5 rounded-xl bg-user-gradient text-white font-label-md text-xs sm:text-sm font-bold shadow-md shadow-[#003973]/20 hover:opacity-95 transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">check</span>
+                <span>Done</span>
+              </motion.button>
+            </div>
+
+            {profileSavedToast && (
+              <motion.div 
+                initial={{ opacity: 0, y: -5 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="p-3 rounded-2xl bg-green-500/10 text-green-700 dark:text-green-300 font-label-md text-xs font-semibold flex items-center justify-center gap-1.5 border border-green-500/20 text-center"
+              >
+                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                Profile changes successfully saved!
+              </motion.div>
+            )}
+
+            {/* 1. Hero Photo & Ring Customizer */}
+            <div className="bg-surface-container-lowest rounded-3xl p-5 sm:p-6 shadow-sm border border-outline-variant/10 flex flex-col items-center text-center">
+              <div className="relative mb-3 group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <div 
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden p-1 shadow-md transition-transform hover:scale-105"
+                  style={{ border: `3.5px solid ${borderColor}` }}
+                >
+                  <img
+                    src={avatar || "/default-avatar.jpg"}
+                    alt="avatar preview"
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                  <div className="absolute inset-0 bg-black/40 rounded-full flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="material-symbols-outlined text-[24px]">photo_camera</span>
+                    <span className="text-[10px] font-bold">Edit</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 relative">
-                  {profileSavedToast && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="absolute -top-10 right-0 px-3 py-1.5 rounded-xl bg-tertiary text-white font-label-md text-[12px] shadow-lg flex items-center gap-1.5 whitespace-nowrap"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                      Profile Updated & Saved!
-                    </motion.div>
-                  )}
-                  <motion.button 
-                    whileHover={{ scale: 1.02 }} 
-                    whileTap={{ scale: 0.98 }} 
-                    onClick={handleSaveProfile}
-                    className="px-6 py-2.5 rounded-2xl bg-primary hover:bg-primary-container text-white font-label-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">save</span>
-                    Save Profile
-                  </motion.button>
+                <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-user-gradient text-white shadow-md flex items-center justify-center pointer-events-none">
+                  <span className="material-symbols-outlined text-[16px]">photo_camera</span>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-5">
-                {/* Custom DP Upload with Move & Area Selection */}
-                <div className="p-4 rounded-2xl bg-surface-container-low flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={avatar || "/default-avatar.jpg"}
-                      alt="avatar preview"
-                      className="w-12 h-12 rounded-full object-cover border-2"
-                      style={{ borderColor: borderColor }}
-                    />
-                    <div>
-                      <p className="font-title-md font-semibold text-on-surface text-[14px]">Profile Picture (DP)</p>
-                      <p className="font-caption text-on-surface-variant text-[11px]">Upload and adjust crop area</p>
-                    </div>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={onFileChange}
-                    className="hidden"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAvatar("/default-avatar.jpg")}
-                      className="px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-caption text-[11px] cursor-pointer"
-                    >
-                      Default
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3.5 py-1.5 rounded-xl bg-primary text-white font-label-md text-[12px] shadow-xs cursor-pointer flex items-center gap-1"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">crop</span>
-                      Move / Pick DP
-                    </button>
-                  </div>
-                </div>
+              {/* Photo Actions */}
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-label-md text-xs font-semibold cursor-pointer transition-colors flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[15px]">crop</span>
+                  Change Photo
+                </button>
+                {avatar && avatar !== "/default-avatar.jpg" && (
+                  <button
+                    type="button"
+                    onClick={() => setAvatar("/default-avatar.jpg")}
+                    className="px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-caption text-xs cursor-pointer transition-colors"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
 
-                {/* Avatar Border Color Accent */}
-                <div className="flex flex-col gap-2">
-                  <label className="font-label-md text-on-surface-variant">Avatar Border Color Accent</label>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {borderColors.map(c => (
-                      <button
-                        key={c.hex}
-                        type="button"
-                        onClick={() => setBorderColor(c.hex)}
-                        className={`w-9 h-9 rounded-2xl transition-transform cursor-pointer flex items-center justify-center ${
-                          borderColor === c.hex ? "ring-2 ring-on-surface ring-offset-2 scale-110" : "hover:scale-105"
-                        }`}
-                        style={{ backgroundColor: c.hex }}
-                        title={c.name}
-                      >
-                        {borderColor === c.hex && (
-                          <span className="material-symbols-outlined text-white text-[16px]">check</span>
-                        )}
-                      </button>
-                    ))}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={onFileChange}
+                className="hidden"
+              />
+
+              {/* Ring Accent Color Palette */}
+              <div className="w-full pt-4 border-t border-outline-variant/10 flex flex-col items-center gap-2">
+                <span className="font-caption text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider">
+                  Avatar Ring Accent
+                </span>
+                <div className="flex items-center justify-center gap-2 sm:gap-2.5 flex-wrap">
+                  {borderColors.map(c => (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() => setBorderColor(c.hex)}
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full transition-all cursor-pointer flex items-center justify-center ${
+                        borderColor === c.hex ? "ring-2 ring-primary ring-offset-2 scale-110 shadow-sm" : "hover:scale-105 opacity-80 hover:opacity-100"
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                      title={c.name}
+                    >
+                      {borderColor === c.hex && (
+                        <span className="material-symbols-outlined text-white text-[14px]">check</span>
+                      )}
+                    </button>
+                  ))}
+                  {/* Custom color picker */}
+                  <label 
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full cursor-pointer flex items-center justify-center border-2 border-dashed border-outline hover:scale-105 transition-transform relative overflow-hidden ${
+                      !borderColors.some(c => c.hex === borderColor) ? "ring-2 ring-primary ring-offset-2" : ""
+                    }`}
+                    title="Custom Color"
+                    style={{ backgroundColor: !borderColors.some(c => c.hex === borderColor) ? borderColor : "transparent" }}
+                  >
+                    <span className="material-symbols-outlined text-[14px] text-on-surface-variant">palette</span>
                     <input
                       type="color"
                       value={borderColor}
                       onChange={e => setBorderColor(e.target.value)}
-                      className="w-9 h-9 rounded-2xl cursor-pointer bg-transparent border-0 outline-none"
-                      title="Custom color hex"
+                      className="opacity-0 absolute inset-0 cursor-pointer w-full h-full"
                     />
-                  </div>
+                  </label>
                 </div>
-
-                {/* Display Name */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-label-md text-on-surface-variant">Display Name</label>
-                  <input 
-                    type="text" 
-                    value={displayName} 
-                    onChange={e => setDisplayName(e.target.value)}
-                    placeholder="Your Display Name"
-                    className="w-full bg-surface-container-low px-4 py-3 rounded-2xl font-title-md outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                  />
-                </div>
-
-                {/* Username Handle */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-label-md text-on-surface-variant">Username Handle</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-title-md">@</span>
-                    <input 
-                      type="text" 
-                      value={handle} 
-                      onChange={e => setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
-                      placeholder="handle"
-                      className="w-full bg-surface-container-low pl-8 pr-4 py-3 rounded-2xl font-title-md outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Pronouns */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-label-md text-on-surface-variant">Pronouns</label>
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    {pronounOptions.map(p => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setPronouns(pronouns === p ? "" : p)}
-                        className={`px-3 py-1 rounded-full font-caption text-[11px] transition-colors cursor-pointer ${
-                          pronouns === p ? "bg-primary text-white font-semibold" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                  <input 
-                    type="text" 
-                    value={pronouns} 
-                    onChange={e => setPronouns(e.target.value)}
-                    placeholder="e.g. he / him or she / her"
-                    maxLength={30}
-                    className="w-full bg-surface-container-low px-4 py-2.5 rounded-2xl font-body-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[13px]"
-                  />
-                </div>
-
-                {/* Gender Selection */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-label-md text-on-surface-variant">Gender</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {genderOptions.map(g => (
-                      <button
-                        key={g}
-                        type="button"
-                        onClick={() => setGender(gender === g ? "" : g)}
-                        className={`py-2 px-3 rounded-2xl border font-caption text-[12px] font-medium transition-all cursor-pointer ${
-                          gender === g 
-                            ? "border-primary bg-primary/10 text-primary font-bold shadow-xs" 
-                            : "border-surface-container bg-surface-container-low hover:bg-surface-container text-on-surface-variant"
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Bio Narrative */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex justify-between items-center">
-                    <label className="font-label-md text-on-surface-variant">Bio Narrative</label>
-                    <span className={`font-caption ${bio.length > 160 ? "text-error" : "text-on-surface-variant"}`}>{bio.length} / 160</span>
-                  </div>
-                  <textarea 
-                    ref={bioInputRef}
-                    value={bio} 
-                    onChange={e => setBio(e.target.value)} 
-                    rows={3}
-                    placeholder="Tell your contacts about yourself (or leave blank for 'add bio +')..."
-                    className="w-full bg-surface-container-low px-4 py-3 rounded-2xl font-body-md outline-none focus:ring-2 focus:ring-primary/20 transition-all resize-none"
-                  />
-                </div>
-
-                {/* Multiple Custom Links */}
-                <div className="flex flex-col gap-3">
-                  <div className="flex justify-between items-center">
-                    <label className="font-label-md text-on-surface-variant font-semibold">Custom Links</label>
-                    <button
-                      type="button"
-                      onClick={handleAddLink}
-                      className="px-3 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 font-label-md text-[12px] flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">add</span>
-                      Add Link +
-                    </button>
-                  </div>
-
-                  {links.length === 0 ? (
-                    <p className="font-caption text-on-surface-variant/70 italic text-[12px]">
-                      No links added yet. Click &apos;Add Link +&apos; to add website, Instagram, YouTube, etc.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {links.map((l, index) => (
-                        <div key={l.id} className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={l.title}
-                            onChange={e => handleUpdateLink(l.id, "title", e.target.value)}
-                            placeholder="Title (e.g. Insta)"
-                            className="w-1/3 bg-surface-container-low px-3 py-2.5 rounded-2xl font-body-sm outline-none focus:ring-2 focus:ring-primary/20 text-[13px]"
-                          />
-                          <input
-                            type="text"
-                            value={l.url}
-                            onChange={e => handleUpdateLink(l.id, "url", e.target.value)}
-                            placeholder="URL (e.g. instagram.com/name)"
-                            className="flex-1 bg-surface-container-low px-3 py-2.5 rounded-2xl font-body-sm outline-none focus:ring-2 focus:ring-primary/20 text-[13px]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLink(l.id)}
-                            className="w-8 h-8 rounded-xl bg-error/10 hover:bg-error/20 text-error flex items-center justify-center cursor-pointer transition-colors"
-                            title="Remove link"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">close</span>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
               </div>
             </div>
-          </div>
-        </div>
-      </div>
+
+            {/* 2. Public Profile Information */}
+            <div className="bg-surface-container-lowest rounded-3xl p-5 sm:p-6 shadow-sm border border-outline-variant/10 flex flex-col gap-4">
+              <div className="border-b border-outline-variant/10 pb-2">
+                <h3 className="font-headline-sm text-xs font-bold text-on-surface uppercase tracking-wider">Identity Details</h3>
+              </div>
+
+              {/* Display Name */}
+              <div className="flex flex-col gap-1">
+                <label className="font-caption text-xs font-semibold text-on-surface-variant">Display Name</label>
+                <input 
+                  type="text" 
+                  value={displayName} 
+                  onChange={e => setDisplayName(e.target.value)}
+                  placeholder="Your Name"
+                  className="w-full bg-surface-container-low px-4 py-2.5 rounded-2xl font-body-md outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm text-on-surface"
+                />
+              </div>
+
+              {/* Username Handle */}
+              <div className="flex flex-col gap-1">
+                <label className="font-caption text-xs font-semibold text-on-surface-variant">Username Handle</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant font-semibold text-sm">@</span>
+                  <input 
+                    type="text" 
+                    value={handle} 
+                    onChange={e => setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
+                    placeholder="username"
+                    className="w-full bg-surface-container-low pl-8 pr-4 py-2.5 rounded-2xl font-body-md outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm font-mono text-on-surface"
+                  />
+                </div>
+              </div>
+
+              {/* Bio Narrative */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                  <label className="font-caption text-xs font-semibold text-on-surface-variant">Bio</label>
+                  <span className={`font-caption text-[11px] ${bio.length > 160 ? "text-error font-bold" : "text-on-surface-variant/70"}`}>
+                    {bio.length} / 160
+                  </span>
+                </div>
+                <textarea 
+                  ref={bioInputRef}
+                  value={bio} 
+                  onChange={e => setBio(e.target.value)} 
+                  rows={3}
+                  maxLength={160}
+                  placeholder="Tell your friends about yourself..."
+                  className="w-full bg-surface-container-low px-4 py-2.5 rounded-2xl font-body-md outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm resize-none text-on-surface"
+                />
+              </div>
+            </div>
+
+            {/* 3. Custom Links */}
+            <div className="bg-surface-container-lowest rounded-3xl p-5 sm:p-6 shadow-sm border border-outline-variant/10 flex flex-col gap-3">
+              <div className="flex justify-between items-center border-b border-outline-variant/10 pb-2">
+                <div>
+                  <h3 className="font-headline-sm text-xs font-bold text-on-surface uppercase tracking-wider">Links & Socials</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddLink}
+                  className="px-3 py-1 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 font-label-md text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[15px]">add</span>
+                  Add Link
+                </button>
+              </div>
+
+              {links.length === 0 ? (
+                <p className="font-caption text-on-surface-variant/70 italic text-xs py-2 text-center">
+                  No links added yet. Tap &apos;Add Link&apos; to add website, Instagram, YouTube, etc.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2 pt-1">
+                  {links.map((l) => (
+                    <div key={l.id} className="p-2.5 rounded-2xl bg-surface-container-low flex flex-col sm:flex-row items-stretch sm:items-center gap-2 border border-outline-variant/10">
+                      <input
+                        type="text"
+                        value={l.title}
+                        onChange={e => handleUpdateLink(l.id, "title", e.target.value)}
+                        placeholder="Label (e.g. Website)"
+                        className="w-full sm:w-1/3 bg-surface-container-lowest px-3 py-2 rounded-xl font-body-sm outline-none focus:ring-2 focus:ring-primary/20 text-xs text-on-surface"
+                      />
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={l.url}
+                          onChange={e => handleUpdateLink(l.id, "url", e.target.value)}
+                          placeholder="https://example.com"
+                          className="flex-1 min-w-0 bg-surface-container-lowest px-3 py-2 rounded-xl font-body-sm outline-none focus:ring-2 focus:ring-primary/20 text-xs text-on-surface"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLink(l.id)}
+                          className="w-7 h-7 rounded-xl bg-error/10 hover:bg-error/20 text-error flex items-center justify-center cursor-pointer transition-colors flex-shrink-0"
+                          title="Remove link"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">close</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Personal Info (Pronouns & Gender) */}
+            <div className="bg-surface-container-lowest rounded-3xl p-5 sm:p-6 shadow-sm border border-outline-variant/10 flex flex-col gap-4">
+              <div className="border-b border-outline-variant/10 pb-2">
+                <h3 className="font-headline-sm text-xs font-bold text-on-surface uppercase tracking-wider">Personal Info</h3>
+              </div>
+
+              {/* Pronouns */}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-caption text-xs font-semibold text-on-surface-variant">Pronouns</label>
+                <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                  {pronounOptions.map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPronouns(pronouns === p ? "" : p)}
+                      className={`px-3 py-1 rounded-full font-caption text-[11px] transition-all cursor-pointer ${
+                        pronouns === p ? "bg-primary text-white font-semibold shadow-xs" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <input 
+                  type="text" 
+                  value={pronouns} 
+                  onChange={e => setPronouns(e.target.value)}
+                  placeholder="e.g. he / him, they / them"
+                  maxLength={30}
+                  className="w-full bg-surface-container-low px-4 py-2 rounded-2xl font-body-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all text-xs text-on-surface"
+                />
+              </div>
+
+              {/* Gender */}
+              <div className="flex flex-col gap-1.5">
+                <label className="font-caption text-xs font-semibold text-on-surface-variant">Gender</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {genderOptions.map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setGender(gender === g ? "" : g)}
+                      className={`py-2 px-3 rounded-2xl border font-caption text-xs font-medium transition-all cursor-pointer text-center ${
+                        gender === g 
+                          ? "border-primary bg-primary/10 text-primary font-bold shadow-xs" 
+                          : "border-surface-container bg-surface-container-low hover:bg-surface-container text-on-surface-variant"
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-5 py-2.5 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-sm cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleSaveProfile}
+                className="px-6 py-2.5 rounded-2xl bg-user-gradient text-white font-label-md text-sm font-semibold shadow-md shadow-[#003973]/20 hover:opacity-95 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">save</span>
+                Save Changes
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  </div>
 
       {/* ── DP CROP & MOVE / AREA SELECTION MODAL ── */}
       <AnimatePresence>
@@ -1195,7 +1298,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={handleSaveNote}
-                  className="py-2.5 rounded-2xl bg-primary text-white font-label-md shadow-xs cursor-pointer"
+                  className="py-2.5 rounded-2xl bg-user-gradient text-white font-label-md shadow-md shadow-[#003973]/20 cursor-pointer"
                 >
                   Share Note
                 </button>

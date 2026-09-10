@@ -160,7 +160,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-surface flex text-on-surface">
       <Sidebar />
 
-      <div className="md:ml-[72px] ml-0 flex-1 flex flex-col p-4 md:p-6 lg:p-10 max-w-5xl mx-auto w-full pb-24 md:pb-8">
+      <div className="md:ml-[86px] ml-0 flex-1 flex flex-col p-4 md:p-6 lg:p-10 max-w-5xl mx-auto w-full pb-24 md:pb-8">
         {!isAuthenticated ? (
           /* Secure 3-Step Master Gateway */
           <div className="flex-1 flex flex-col items-center justify-center">
@@ -220,7 +220,7 @@ export default function AdminPage() {
                 )}
 
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.09 }}
                   whileTap={{ scale: 0.98 }}
                   type="submit"
                   className="w-full py-3 rounded-2xl bg-primary text-white font-title-md font-semibold shadow-md shadow-primary/20 transition-all cursor-pointer mt-2 flex items-center justify-center gap-2"
@@ -250,7 +250,7 @@ export default function AdminPage() {
 
               <div className="flex items-center gap-3">
                 <motion.button
-                  whileHover={{ scale: 1.03 }}
+                  whileHover={{ scale: 1.10 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => router.push("/chat")}
                   className="px-4 py-2 rounded-2xl bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md transition-all cursor-pointer"
@@ -258,7 +258,7 @@ export default function AdminPage() {
                   Back to Chat
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.03 }}
+                  whileHover={{ scale: 1.10 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={handleLogout}
                   className="px-4 py-2 rounded-2xl bg-error/10 hover:bg-error/20 text-error font-label-md transition-all cursor-pointer"
@@ -414,7 +414,7 @@ export default function AdminPage() {
                   {/* Action Buttons */}
                   <div className="grid grid-cols-2 gap-3 mt-1">
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
+                      whileHover={{ scale: 1.09 }}
                       whileTap={{ scale: 0.98 }}
                       type="button"
                       onClick={() => handleGrantBadge(false)}
@@ -423,7 +423,7 @@ export default function AdminPage() {
                       Revoke Badge
                     </motion.button>
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
+                      whileHover={{ scale: 1.09 }}
                       whileTap={{ scale: 0.98 }}
                       type="button"
                       onClick={() => handleGrantBadge(true)}
@@ -498,7 +498,7 @@ export default function AdminPage() {
                   </div>
 
                   <motion.button
-                    whileHover={{ scale: 1.02 }}
+                    whileHover={{ scale: 1.09 }}
                     whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={handleSetFriendsCount}

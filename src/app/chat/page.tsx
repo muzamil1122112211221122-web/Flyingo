@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import { Storage, UserProfile, ChatCustomization, FriendRequest, PanicModeConfig, GroupChat, CallSession } from "@/lib/storage";
 import { Realtime } from "@/lib/realtime";
 import { INSTAGRAM_GIFS, GIF_CATEGORIES, GifItem } from "@/lib/gifs";
+import { getThemeContainerStyle } from "@/lib/chatThemes";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import AudioPlayer from "@/components/AudioPlayer";
 import CallModal from "@/components/CallModal";
@@ -141,6 +142,33 @@ export default function ChatPage() {
   const [panicToast, setPanicToast] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Mobile virtual keyboard & viewport tracking so input bar never disappears when typing or scrolling
+  const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+
+    const handleVisualViewportChange = () => {
+      if (window.visualViewport) {
+        setMobileViewportHeight(window.visualViewport.height);
+        // Pinned window scroll to prevent iOS Safari shifting fixed containers
+        if (window.scrollY !== 0) {
+          window.scrollTo(0, 0);
+        }
+      }
+    };
+
+    const vv = window.visualViewport;
+    vv.addEventListener("resize", handleVisualViewportChange);
+    vv.addEventListener("scroll", handleVisualViewportChange);
+    handleVisualViewportChange();
+
+    return () => {
+      vv.removeEventListener("resize", handleVisualViewportChange);
+      vv.removeEventListener("scroll", handleVisualViewportChange);
+    };
+  }, []);
 
   const loadPanicModeState = () => {
     const activePanic = Storage.getActivePanicMode();
@@ -814,11 +842,14 @@ export default function ChatPage() {
   );
 
   const sentGradients: Record<string, string> = {
-    "electric-rose": "from-[#b70942] to-[#da2e59]",
+    "electric-rose": "from-[#003973] to-[#e5e5be]",
     "midnight-violet": "from-[#7d2dce] to-[#51138f]",
     "emerald-glow": "from-[#008190] to-[#00525c]",
     "ocean-cyan": "from-[#00daf3] to-[#007482]",
     "deep-obsidian": "from-[#283044] to-[#131b2e]",
+    "sunset-glow": "from-[#ff512f] to-[#dd2476]",
+    "sakura-rose": "from-[#ff758c] to-[#ff7eb3]",
+    "royal-purple": "from-[#8a2387] via-[#e94057] to-[#f27121]",
   };
 
   const receivedBubbleStyles: Record<string, string> = {
@@ -828,19 +859,32 @@ export default function ChatPage() {
     "lilac-mist": "bg-[#efdbff]/60 text-on-surface shadow-sm",
   };
 
+  const wallpaperClass: Record<string, string> = {
+    frost: "bg-gradient-to-b from-surface to-surface-container-low/25",
+    "insta-sunset": "bg-gradient-to-br from-[#1f102e] via-[#4d164d] to-[#d4634f] text-white",
+    "insta-cyber": "bg-gradient-to-br from-[#06101e] via-[#0b2545] to-[#134074] text-white",
+    "insta-sakura": "bg-gradient-to-br from-[#fff1f2] via-[#ffe4e6] to-[#fecdd3] dark:from-[#2d1223] dark:via-[#4a154b] dark:to-[#1f0b18]",
+    "insta-aurora": "bg-gradient-to-br from-[#051923] via-[#003554] via-45% to-[#0582ca] text-white",
+    "flyingo-gold": "bg-gradient-to-br from-[#001f3f] via-[#003973] to-[#203a43] text-white",
+    "amoled-dark": "bg-[#07090e] text-white",
+    "insta-lavender": "bg-gradient-to-br from-[#e0c3fc] via-[#8ec5fc] to-[#dae2fd] dark:from-[#1b1035] dark:via-[#2e1a47] dark:to-[#120924]",
+    "doodle-pattern": "bg-surface bg-[radial-gradient(#003973_1px,transparent_1px)] [background-size:16px_16px] dark:bg-[radial-gradient(#ffffff_1px,transparent_1px)] dark:[background-size:16px_16px]",
+    "clean-pure": "bg-surface",
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden bg-surface">
+    <div className="flex h-[100dvh] md:h-screen overflow-hidden bg-surface">
       <Sidebar hideBottomNav={mobileView === "chat"} />
 
       {/* ── LEFT PANE ── */}
-      <section className={`md:ml-[72px] w-full md:w-[390px] flex-shrink-0 flex-col bg-surface-container-lowest/90 backdrop-blur-2xl shadow-[4px_0_24px_rgba(19,27,46,0.03)] z-10 border-r border-outline-variant/10 overflow-hidden ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+      <section className={`md:ml-[86px] w-full md:w-[390px] flex-shrink-0 flex-col bg-surface-container-lowest/90 backdrop-blur-2xl shadow-[4px_0_24px_rgba(19,27,46,0.03)] z-10 border-r border-outline-variant/10 overflow-hidden ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
 
         {/* Header with REAL User DP and Dynamic Verified Badge */}
         <div className="p-5 pb-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
               <motion.button
-                whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.09 }} whileTap={{ scale: 0.95 }}
                 onClick={() => router.push("/profile")}
                 className="w-11 h-11 rounded-2xl overflow-hidden shadow-md flex items-center justify-center p-0.5 bg-surface-container border border-outline-variant/20 cursor-pointer"
                 title="View Bio Studio"
@@ -875,7 +919,7 @@ export default function ChatPage() {
           </div>
 
             <motion.button
-              whileHover={{ scale: 1.08, rotate: 5 }} whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.12, rotate: 5 }} whileTap={{ scale: 0.92 }}
               onClick={() => { setShowFindFriends(true); Storage.fetchRemoteUsers().then(users => setAllUsers(users.filter(u => u.handle.toLowerCase() !== currentUser.handle.toLowerCase()))); }}
               title="Find Friends / Send Friend Request"
               className="w-9 h-9 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md shadow-primary/30 transition-all cursor-pointer"
@@ -992,7 +1036,7 @@ export default function ChatPage() {
                 return (
                   <motion.div
                     key={conv.id}
-                    whileHover={{ scale: 1.01 }}
+                    whileHover={{ scale: 1.10 }}
                     whileTap={{ scale: 0.99 }}
                     onClick={() => {
                       setActiveConvId(conv.id);
@@ -1178,7 +1222,10 @@ export default function ChatPage() {
       </section>
 
       {/* ── RIGHT MAIN CHAT AREA (INSTAGRAM STYLE FULL SCREEN ON MOBILE) ── */}
-      <main className={`fixed inset-0 z-30 md:static md:flex-1 md:z-0 flex-col h-screen overflow-hidden bg-surface ${mobileView === "list" ? "hidden md:flex" : "flex"}`}>
+      <main
+        style={mobileViewportHeight ? { height: `${mobileViewportHeight}px` } : undefined}
+        className={`fixed inset-x-0 top-0 z-30 md:static md:flex-1 md:z-0 flex-col h-[100dvh] md:h-screen overflow-hidden bg-surface overscroll-none ${mobileView === "list" ? "hidden md:flex" : "flex"}`}
+      >
         {requestSentToast && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -1301,7 +1348,10 @@ export default function ChatPage() {
             </header>
 
             {/* Messages Stream */}
-            <div className="flex-1 overflow-y-auto px-8 py-5 flex flex-col gap-3 bg-gradient-to-b from-surface to-surface-container-low/20">
+            <div 
+              className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-8 py-5 flex flex-col gap-3 transition-all"
+              style={getThemeContainerStyle(chatSettings.wallpaper, chatSettings.customWallpaperUrl)}
+            >
               {currentMessages.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
                   <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
@@ -1474,7 +1524,7 @@ export default function ChatPage() {
                               />
                             </div>
                           ) : null}
-                          {msg.text && <p className="leading-relaxed break-words">{msg.text}</p>}
+                          {msg.text && <p className="font-chat-bubble leading-relaxed break-words">{msg.text}</p>}
                           {!isPanicActive && (
                             <span className="block font-caption text-right text-[10px] opacity-70 mt-1">{msg.time}</span>
                           )}
@@ -1636,8 +1686,8 @@ export default function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input bar — Floating style, no bg */}
-            <div className="px-4 md:px-6 pb-3 md:pb-5 pt-2 relative flex-shrink-0">
+            {/* Input bar — Anchored with safe-area & solid backdrop */}
+            <div className="px-3 sm:px-4 md:px-6 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] bg-surface/90 dark:bg-surface/95 backdrop-blur-xl border-t border-outline-variant/10 relative z-20 flex-shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]">
               <div className="max-w-2xl mx-auto">
               {/* Reply-to Banner */}
               {replyingTo && (
@@ -1978,6 +2028,15 @@ export default function ChatPage() {
                         setMessageText(e.target.value);
                         handleTyping();
                       }}
+                      onFocus={() => {
+                        setTimeout(() => {
+                          if (typeof window !== "undefined" && window.visualViewport) {
+                            setMobileViewportHeight(window.visualViewport.height);
+                          }
+                          window.scrollTo(0, 0);
+                          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                        }, 180);
+                      }}
                       onKeyDown={e => { if (e.key === "Enter") sendMessage(); }}
                       placeholder={`Message @${activeConv.handle}...`}
                       className="flex-1 min-w-0 bg-transparent text-on-surface font-body-md outline-none px-1.5 sm:px-2 text-[13px] sm:text-[14px]"
@@ -1985,17 +2044,17 @@ export default function ChatPage() {
 
                     {messageText.trim() || attachedFile || attachedImage ? (
                       <motion.button
-                        whileHover={{ scale: 1.06 }}
+                        whileHover={{ scale: 1.10 }}
                         whileTap={{ scale: 0.94 }}
                         onClick={() => sendMessage()}
-                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary text-white flex items-center justify-center cursor-pointer shadow-md shadow-primary/20 transition-all flex-shrink-0"
+                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-user-gradient text-white flex items-center justify-center cursor-pointer shadow-md shadow-[#003973]/25 transition-all flex-shrink-0"
                         title="Send Message"
                       >
                         <span className="material-symbols-outlined text-[18px] sm:text-[20px]">send</span>
                       </motion.button>
                     ) : (
                       <motion.button
-                        whileHover={{ scale: 1.06 }}
+                        whileHover={{ scale: 1.10 }}
                         whileTap={{ scale: 0.94 }}
                         onClick={startVoiceRecording}
                         className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-surface-container hover:bg-primary hover:text-white text-on-surface-variant flex items-center justify-center cursor-pointer transition-colors flex-shrink-0"
@@ -2028,7 +2087,7 @@ export default function ChatPage() {
               Select a conversation from the sidebar or click Find Users to connect with your friends.
             </p>
             <motion.button
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.09 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowFindFriends(true)}
               className="px-6 py-3 rounded-2xl bg-primary text-white font-title-md font-semibold flex items-center gap-2 shadow-md shadow-primary/20 cursor-pointer"
@@ -2593,12 +2652,12 @@ export default function ChatPage() {
             >
               <div className="flex items-center justify-between border-b border-outline-variant/15 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-error text-white flex items-center justify-center font-bold text-lg">
+                  <div className="w-8 h-8 rounded-full bg-user-gradient text-white flex items-center justify-center font-bold text-lg shadow-sm">
                     !
                   </div>
                   <div>
                     <h3 className="font-title-lg font-bold text-on-surface">Panic Modes</h3>
-                    <p className="font-caption text-on-surface-variant">Permanent decoy screen until you type <span className="text-error font-mono font-bold">--leave</span></p>
+                    <p className="font-caption text-on-surface-variant">Permanent decoy screen until you type <span className="text-[#003973] font-mono font-bold">--leave</span></p>
                   </div>
                 </div>
                 <button
@@ -2611,8 +2670,8 @@ export default function ChatPage() {
 
               {/* Active Panic Status Banner */}
               {isPanicActive && (
-                <div className="p-3.5 rounded-2xl bg-error/15 border border-error/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-error text-sm font-semibold">
+                <div className="p-3.5 rounded-2xl bg-[#003973]/10 border border-[#003973]/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[#003973] text-sm font-semibold">
                     <span className="material-symbols-outlined text-[20px] animate-pulse">lock</span>
                     Panic Mode is currently ACTIVE
                   </div>
@@ -2628,7 +2687,7 @@ export default function ChatPage() {
                       setTimeout(() => setPanicToast(""), 3000);
                       setShowPanicModal(false);
                     }}
-                    className="px-3 py-1 rounded-xl bg-error text-white font-caption font-bold text-xs cursor-pointer hover:bg-error/90"
+                    className="px-3 py-1 rounded-xl bg-user-gradient text-white font-caption font-bold text-xs cursor-pointer hover:opacity-90 shadow-sm"
                   >
                     Exit Panic Mode
                   </button>
@@ -2641,7 +2700,7 @@ export default function ChatPage() {
                 {panicModes.map(mode => (
                   <div
                     key={mode.id}
-                    className="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/10 flex items-center justify-between gap-3 hover:border-error/40 transition-colors"
+                    className="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/10 flex items-center justify-between gap-3 hover:border-[#003973]/40 transition-colors"
                   >
                     <div className="min-w-0">
                       <p className="font-title-md font-bold text-on-surface truncate">{mode.name}</p>
@@ -2660,7 +2719,7 @@ export default function ChatPage() {
                           loadPanicModeState();
                           setShowPanicModal(false);
                         }}
-                        className="px-3.5 py-1.5 rounded-xl bg-error hover:bg-error/90 text-white font-caption font-bold text-xs shadow-sm cursor-pointer"
+                        className="px-3.5 py-1.5 rounded-xl bg-user-gradient hover:opacity-90 text-white font-caption font-bold text-xs shadow-sm cursor-pointer"
                       >
                         Activate
                       </button>
@@ -2789,7 +2848,7 @@ export default function ChatPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-5 right-5 z-50 px-4 py-2.5 rounded-2xl bg-error text-white font-title-md text-xs font-semibold shadow-xl flex items-center gap-2"
+            className="fixed top-5 right-5 z-50 px-4 py-2.5 rounded-2xl bg-user-gradient text-white font-title-md text-xs font-semibold shadow-xl shadow-[#003973]/30 flex items-center gap-2"
           >
             <span className="material-symbols-outlined text-[18px]">emergency_home</span>
             {panicToast}
@@ -2800,14 +2859,14 @@ export default function ChatPage() {
       {/* ── FLOATING TOP-RIGHT EMERGENCY PANIC MODE BUTTON ── */}
       {!isPanicActive && (
         <motion.button
-          whileHover={{ scale: 1.05 }}
+          whileHover={{ scale: 1.09 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => {
             setPanicModes(Storage.getPanicModes());
             setShowPanicModal(true);
           }}
           title="Emergency Panic Mode"
-          className="fixed top-2.5 md:top-4 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-6 z-40 w-8 h-8 md:w-11 md:h-11 rounded-full bg-error text-white font-extrabold text-base md:text-xl shadow-lg shadow-error/30 flex items-center justify-center border-2 border-white/90 cursor-pointer hover:shadow-xl hover:shadow-error/50 transition-all group"
+          className="fixed top-2.5 md:top-4 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-6 z-40 w-8 h-8 md:w-11 md:h-11 rounded-full bg-user-gradient text-white font-extrabold text-base md:text-xl shadow-lg shadow-[#003973]/30 flex items-center justify-center border-2 border-white/90 cursor-pointer hover:shadow-xl hover:shadow-[#003973]/50 transition-all group"
         >
           <span className="group-hover:scale-110 transition-transform">!</span>
         </motion.button>

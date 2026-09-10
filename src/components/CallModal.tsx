@@ -184,7 +184,7 @@ export default function CallModal({
               <button
                 type="button"
                 onClick={onDecline}
-                className="flex-1 max-w-[120px] py-3.5 px-4 rounded-2xl bg-error text-white font-label-md text-[13px] flex items-center justify-center gap-2 shadow-lg hover:bg-error/90 cursor-pointer transition-all"
+                className="flex-1 max-w-[120px] py-3.5 px-4 rounded-2xl bg-user-gradient text-white font-label-md text-[13px] flex items-center justify-center gap-2 shadow-lg hover:opacity-90 cursor-pointer transition-all"
               >
                 <span className="material-symbols-outlined text-[20px]">call_end</span>
                 Decline
@@ -255,7 +255,7 @@ export default function CallModal({
               <button
                 type="button"
                 onClick={() => onEnd(callDuration)}
-                className="w-14 h-14 rounded-full bg-error text-white flex items-center justify-center shadow-xl hover:bg-error/90 cursor-pointer transition-transform hover:scale-105"
+                className="w-14 h-14 rounded-full bg-user-gradient text-white flex items-center justify-center shadow-xl hover:opacity-90 cursor-pointer transition-transform hover:scale-105"
                 title="End Call"
               >
                 <span className="material-symbols-outlined text-[26px]">call_end</span>
