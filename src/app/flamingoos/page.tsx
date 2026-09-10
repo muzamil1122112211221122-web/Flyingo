@@ -201,6 +201,16 @@ export default function FlamingoosPage() {
   const handleLike = (storyId: string) => {
     const updated = Storage.likeStory(storyId);
     setStories(updated);
+    const target = updated.find(s => s.id === storyId);
+    if (target && currentUser.handle) {
+      Realtime.sendStoryLike(
+        storyId,
+        target.likes,
+        !!target.hasLiked,
+        currentUser.handle,
+        target.authorHandle || ""
+      );
+    }
   };
 
   const handleSendReply = () => {

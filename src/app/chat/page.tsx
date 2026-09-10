@@ -451,12 +451,12 @@ export default function ChatPage() {
     }
   }, [currentUser.handle]);
 
-  const sendMessage = (customMediaUrl?: string, customMediaType?: "image" | "gif") => {
+  const sendMessage = async (customMediaUrl?: string, customMediaType?: "image" | "gif") => {
     const text = messageText.trim();
     const fileToSend = attachedFile;
     const isFile = !!fileToSend && !fileToSend.isImage;
-    const mediaToSend = customMediaUrl || (fileToSend ? fileToSend.url : attachedImage);
-    const mediaTypeDetermined: "image" | "gif" | "file" | undefined = customMediaType || (isFile ? "file" : (mediaToSend ? "image" : undefined));
+    let mediaToSend = customMediaUrl || (fileToSend ? fileToSend.url : attachedImage);
+    const mediaTypeDetermined: "image" | "gif" | "file" | "audio" | undefined = customMediaType || (isFile ? "file" : (mediaToSend ? "image" : undefined));
 
     if (!text && !mediaToSend) return;
     if (!activeConvId) return;
@@ -478,6 +478,25 @@ export default function ChatPage() {
 
     const activeConvForSend = conversations.find(c => c.id === activeConvId);
     if (!activeConvForSend) return;
+
+    // ── UPLOAD MEDIA TO SUPABASE STORAGE ──
+    // Base64 data URLs can be 100KB–5MB, exceeding Supabase's ~32KB broadcast limit.
+    // Upload to Supabase Storage first, then broadcast only the small public URL.
+    if (mediaToSend && mediaToSend.startsWith("data:") && !isPanicActive) {
+      const ext = mediaToSend.split(";")[0].split("/")[1] || "bin";
+      const fileName = fileToSend?.name || `media_${Date.now()}.${ext}`;
+      const uploaded = await Realtime.uploadMedia(mediaToSend, fileName);
+      if (uploaded) {
+        mediaToSend = uploaded;
+        // Also update attachedFile.url so local render uses CDN URL
+        if (fileToSend) {
+          setAttachedFile({ ...fileToSend, url: uploaded });
+        } else if (attachedImage) {
+          setAttachedImage(uploaded);
+        }
+      }
+      // If upload fails, mediaToSend stays as base64 (saves locally, won't reach other device live)
+    }
 
     const newMsg: Message = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -620,9 +639,18 @@ export default function ChatPage() {
     }
   };
 
-  const sendVoiceMessage = (audioUrl: string, durationSecs: number) => {
+  const sendVoiceMessage = async (audioUrl: string, durationSecs: number) => {
     if (!activeConvId) return;
     const time = now();
+
+    // Upload voice note to Supabase Storage so the URL fits in the 32KB broadcast limit
+    let finalAudioUrl = audioUrl;
+    if (audioUrl.startsWith("data:") && !isPanicActive) {
+      const ext = audioUrl.includes("webm") ? "webm" : audioUrl.includes("ogg") ? "ogg" : audioUrl.includes("mp4") ? "m4a" : "wav";
+      const uploaded = await Realtime.uploadMedia(audioUrl, `voice_${Date.now()}.${ext}`);
+      if (uploaded) finalAudioUrl = uploaded;
+    }
+
     const newMsg: Message = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       sender: "me",
@@ -630,7 +658,7 @@ export default function ChatPage() {
       text: "",
       time,
       delivered: true,
-      mediaUrl: audioUrl,
+      mediaUrl: finalAudioUrl,
       mediaType: "audio",
       audioDuration: durationSecs,
     };
@@ -1703,6 +1731,11 @@ export default function ChatPage() {
                           <button
                             onClick={() => {
                               Storage.deleteMessage(channelKey, msg.id, !!activeConv.isGroup);
+                              // Broadcast deletion so other device removes it instantly
+                              const participants = activeConv.isGroup
+                                ? (activeConv.members || [])
+                                : [currentUser.handle, activeConv.handle];
+                              Realtime.sendDeleteMessage(channelKey, msg.id, !!activeConv.isGroup, participants);
                               setSyncTick(t => t + 1);
                             }}
                             className="w-7 h-7 rounded-xl flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-error/10 cursor-pointer transition-colors"
@@ -3326,7 +3359,20 @@ export default function ChatPage() {
                   { icon: "reply", label: "Reply", action: () => { setReplyingTo(ctxMsg); setContextMenu(null); } },
                   { icon: "push_pin", label: (ctxMsg as any).isPinned ? "Unpin" : "Pin", action: () => { Storage.togglePin(channelKeyCtx, contextMenu.msgId, !!activeConvCtx.isGroup); setSyncTick(t => t + 1); setContextMenu(null); } },
                   { icon: "content_copy", label: "Copy", action: () => { navigator.clipboard?.writeText(ctxMsg.text || ""); setContextMenu(null); } },
-                  { icon: "delete", label: "Delete for everyone", isDestructive: true, action: () => { Storage.deleteMessage(channelKeyCtx, contextMenu.msgId, !!activeConvCtx.isGroup); setSyncTick(t => t + 1); setContextMenu(null); } },
+                  {
+                    icon: "delete",
+                    label: "Delete for everyone",
+                    isDestructive: true,
+                    action: () => {
+                      Storage.deleteMessage(channelKeyCtx, contextMenu.msgId, !!activeConvCtx.isGroup);
+                      const participants = activeConvCtx.isGroup
+                        ? (activeConvCtx.members || [])
+                        : [currentUser.handle, activeConvCtx.handle];
+                      Realtime.sendDeleteMessage(channelKeyCtx, contextMenu.msgId, !!activeConvCtx.isGroup, participants);
+                      setSyncTick(t => t + 1);
+                      setContextMenu(null);
+                    }
+                  },
                 ].map(item => (
                   <button
                     key={item.label}

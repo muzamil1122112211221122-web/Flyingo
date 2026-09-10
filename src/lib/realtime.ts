@@ -10,6 +10,9 @@ type PresenceCallback = (onlineHandles: string[]) => void;
 type TypingCallback = (channelId: string, handle: string, isTyping: boolean) => void;
 type CallCallback = (call: CallSession | null) => void;
 type CallSignalCallback = (signal: { senderHandle: string; recipientHandle: string; type: "offer" | "answer" | "candidate"; sdp?: any; candidate?: any }) => void;
+type DeleteCallback = (channelKey: string, messageId: string, isGroup: boolean) => void;
+type StoryLikeCallback = (storyId: string, likes: number, hasLiked: boolean) => void;
+type ReactionCallback = (channelKey: string, messageId: string, emoji: string, handle: string, isGroup: boolean) => void;
 
 let globalChannel: ReturnType<typeof supabase.channel> | null = null;
 let currentSubscribedHandle: string | null = null;
@@ -20,6 +23,9 @@ const presenceListeners = new Set<PresenceCallback>();
 const typingListeners = new Set<TypingCallback>();
 const callListeners = new Set<CallCallback>();
 const callSignalListeners = new Set<CallSignalCallback>();
+const deleteListeners = new Set<DeleteCallback>();
+const storyLikeListeners = new Set<StoryLikeCallback>();
+const reactionListeners = new Set<ReactionCallback>();
 
 export const Realtime = {
   /**
@@ -200,6 +206,56 @@ export const Realtime = {
       }
     });
 
+    // ── 7. REAL-TIME DELETE FOR EVERYONE ──
+    channel.on("broadcast", { event: "delete_message" }, ({ payload }) => {
+      if (!payload) return;
+      const { channelKey, messageId, isGroup, participants } = payload;
+      if (!channelKey || !messageId) return;
+      // Only process if we are one of the participants
+      const parts: string[] = Array.isArray(participants) ? participants.map((p: string) => p.toLowerCase()) : [];
+      if (parts.length === 0 || parts.includes(cleanHandle)) {
+        Storage.deleteMessage(channelKey, messageId, !!isGroup);
+        deleteListeners.forEach((fn) => fn(channelKey, messageId, !!isGroup));
+        window.dispatchEvent(new StorageEvent("storage", { key: isGroup ? `flyingo_grpmsg_${channelKey}` : channelKey }));
+      }
+    });
+
+    // ── 8. REAL-TIME FLAMINGOO STORY LIKES ──
+    channel.on("broadcast", { event: "story_like" }, ({ payload }) => {
+      if (!payload) return;
+      const { storyId, likes, hasLiked, likerHandle } = payload;
+      if (!storyId) return;
+      // Update local story likes count
+      const stories = Storage.getStories();
+      const updated = stories.map(s => {
+        if (s.id === storyId) {
+          // If WE are the liker, keep our own hasLiked; otherwise just update likes count
+          const myLiked = likerHandle?.toLowerCase() === cleanHandle ? hasLiked : s.hasLiked;
+          return { ...s, likes, hasLiked: myLiked };
+        }
+        return s;
+      });
+      if (typeof window !== "undefined") {
+        localStorage.setItem("flyingo_stories", JSON.stringify(updated));
+      }
+      storyLikeListeners.forEach((fn) => fn(storyId, likes, hasLiked));
+      window.dispatchEvent(new StorageEvent("storage", { key: "flyingo_stories" }));
+    });
+
+    // ── 9. REAL-TIME EMOJI REACTIONS ──
+    channel.on("broadcast", { event: "reaction" }, ({ payload }) => {
+      if (!payload) return;
+      const { channelKey, messageId, emoji, handle, isGroup, participants } = payload;
+      if (!channelKey || !messageId || !emoji || !handle) return;
+      if (handle.toLowerCase() === cleanHandle) return; // skip own reaction (already applied locally)
+      const parts: string[] = Array.isArray(participants) ? participants.map((p: string) => p.toLowerCase()) : [];
+      if (parts.length === 0 || parts.includes(cleanHandle)) {
+        Storage.toggleReaction(channelKey, messageId, emoji, handle, !!isGroup);
+        reactionListeners.forEach((fn) => fn(channelKey, messageId, emoji, handle, !!isGroup));
+        window.dispatchEvent(new StorageEvent("storage", { key: isGroup ? `flyingo_grpmsg_${channelKey}` : channelKey }));
+      }
+    });
+
     // Subscribe and track presence
     channel.subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
@@ -344,6 +400,86 @@ export const Realtime = {
       type: "broadcast",
       event: "typing",
       payload: { channelId, handle, isTyping },
+    }).catch(() => {});
+  },
+
+  /**
+   * Upload a base64 data URL to Supabase Storage and return the public CDN URL.
+   * This is the key to avoiding the 32KB broadcast size limit for media messages.
+   */
+  uploadMedia: async (dataUrl: string, fileName: string): Promise<string | null> => {
+    try {
+      // Convert base64 data URL to Blob
+      const [meta, base64] = dataUrl.split(",");
+      const mimeMatch = meta.match(/data:([^;]+);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: mimeType });
+
+      // Sanitize filename
+      const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_").substring(0, 80);
+      const path = `media/${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${cleanName}`;
+
+      // Try upload (bucket must be public; we create it if it doesn't exist)
+      const { data, error } = await supabase.storage
+        .from("flyingo-media")
+        .upload(path, blob, { upsert: false, contentType: mimeType });
+
+      if (error) {
+        // If bucket doesn't exist, try creating it then re-upload
+        if (error.message?.includes("bucket") || error.message?.includes("not found")) {
+          await supabase.storage.createBucket("flyingo-media", { public: true }).catch(() => {});
+          const retry = await supabase.storage.from("flyingo-media").upload(path, blob, { upsert: true, contentType: mimeType });
+          if (retry.error) return null;
+          const { data: urlData } = supabase.storage.from("flyingo-media").getPublicUrl(path);
+          return urlData?.publicUrl || null;
+        }
+        return null;
+      }
+
+      if (!data?.path) return null;
+      const { data: urlData } = supabase.storage.from("flyingo-media").getPublicUrl(data.path);
+      return urlData?.publicUrl || null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  /**
+   * Broadcast "delete for everyone" so both sides remove the message instantly.
+   */
+  sendDeleteMessage: (channelKey: string, messageId: string, isGroup: boolean, participants: string[]) => {
+    if (!globalChannel) return;
+    globalChannel.send({
+      type: "broadcast",
+      event: "delete_message",
+      payload: { channelKey, messageId, isGroup, participants },
+    }).catch(() => {});
+  },
+
+  /**
+   * Broadcast a flamingoo story like so the like count updates live for the uploader.
+   */
+  sendStoryLike: (storyId: string, likes: number, hasLiked: boolean, likerHandle: string, authorHandle: string) => {
+    if (!globalChannel) return;
+    globalChannel.send({
+      type: "broadcast",
+      event: "story_like",
+      payload: { storyId, likes, hasLiked, likerHandle, authorHandle },
+    }).catch(() => {});
+  },
+
+  /**
+   * Broadcast an emoji reaction so it appears live on the other side.
+   */
+  sendReaction: (channelKey: string, messageId: string, emoji: string, handle: string, isGroup: boolean, participants: string[]) => {
+    if (!globalChannel) return;
+    globalChannel.send({
+      type: "broadcast",
+      event: "reaction",
+      payload: { channelKey, messageId, emoji, handle, isGroup, participants },
     }).catch(() => {});
   },
 
@@ -499,5 +635,20 @@ export const Realtime = {
   onCallSignal: (fn: CallSignalCallback) => {
     callSignalListeners.add(fn);
     return () => callSignalListeners.delete(fn);
+  },
+
+  onDelete: (fn: DeleteCallback) => {
+    deleteListeners.add(fn);
+    return () => deleteListeners.delete(fn);
+  },
+
+  onStoryLike: (fn: StoryLikeCallback) => {
+    storyLikeListeners.add(fn);
+    return () => storyLikeListeners.delete(fn);
+  },
+
+  onReaction: (fn: ReactionCallback) => {
+    reactionListeners.add(fn);
+    return () => reactionListeners.delete(fn);
   },
 };
