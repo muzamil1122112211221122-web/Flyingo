@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -231,10 +231,10 @@ export default function FlamingoosPage() {
     <div className="min-h-screen bg-surface flex text-on-surface">
       <Sidebar />
 
-      {/* â”€â”€ MAIN CONTENT â”€â”€ */}
+      {/* ---- MAIN CONTENT ---- */}
       <div className="md:ml-[86px] ml-0 flex-1 flex flex-col min-h-screen pb-28 md:pb-8">
 
-        {/* â”€â”€ TOP HEADER â”€â”€ */}
+        {/* ---- TOP HEADER ---- */}
         <div className="sticky top-0 z-20 bg-surface/80 backdrop-blur-xl border-b border-surface-container px-4 md:px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="material-symbols-outlined text-[22px] text-primary">auto_stories</span>
@@ -259,7 +259,7 @@ export default function FlamingoosPage() {
 
         <div className="flex flex-col gap-0 max-w-2xl mx-auto w-full">
 
-          {/* â”€â”€ STORY TRAY (naked, Instagram-style) â”€â”€ */}
+          {/* ---- STORY TRAY (naked, Instagram-style) ---- */}
           <div className="px-2 pt-4 pb-2">
             <div className="flex items-center gap-4 overflow-x-auto pb-2 scrollbar-none px-2">
               {/* My Flamingoo Creator pill */}
@@ -317,10 +317,10 @@ export default function FlamingoosPage() {
             </div>
           </div>
 
-          {/* â”€â”€ DIVIDER â”€â”€ */}
+          {/* ---- DIVIDER ---- */}
           <div className="h-px bg-surface-container mx-4 my-1" />
 
-          {/* â”€â”€ FEED / EMPTY STATE â”€â”€ */}
+          {/* ---- FEED / EMPTY STATE ---- */}
           {stories.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center px-6 py-20">
               <div className="w-20 h-20 rounded-full bg-surface-container-low flex items-center justify-center mb-5">
@@ -341,7 +341,7 @@ export default function FlamingoosPage() {
               </motion.button>
             </div>
           ) : (
-            /* â”€â”€ FEED CARDS â€” Instagram-style 2-col grid â”€â”€ */
+            /* ---- FEED CARDS â€” Instagram-style 2-col grid ---- */
             <div className="grid grid-cols-2 md:grid-cols-3 gap-0.5 p-0.5">
               {stories.map((story, idx) => {
                 const isMine = story.authorHandle?.toLowerCase() === currentUser.handle?.toLowerCase();
@@ -412,7 +412,7 @@ export default function FlamingoosPage() {
         </div>
       </div>
 
-      {/* â”€â”€ MOBILE FAB â”€â”€ */}
+      {/* ---- MOBILE FAB ---- */}
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.93 }}
@@ -422,7 +422,7 @@ export default function FlamingoosPage() {
         <span className="material-symbols-outlined text-[24px]">add</span>
       </motion.button>
 
-      {/* â”€â”€ CREATE FLAMINGOO MODAL â”€â”€ */}
+      {/* ---- CREATE FLAMINGOO MODAL ---- */}
       <AnimatePresence>
         {showCreateModal && (
           <motion.div
@@ -631,7 +631,7 @@ export default function FlamingoosPage() {
       </AnimatePresence>
 
 
-      {/* â”€â”€ FULLSCREEN STORY VIEWER â”€â”€ */}
+      {/* ---- FULLSCREEN STORY VIEWER ---- */}
       <AnimatePresence>
         {activeStory && (
           <motion.div
@@ -721,8 +721,9 @@ export default function FlamingoosPage() {
               {/* Footer */}
               <div className="flex flex-col gap-2.5 z-30 px-4 pb-5">
                 {replySentToast && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-2 rounded-xl bg-black/70 backdrop-blur-md text-center font-caption text-tertiary-fixed text-[12px]">
-                    âœ“ Reply sent to @{activeStory.authorHandle}&apos;s chat!
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-2 rounded-xl bg-black/70 backdrop-blur-md text-center font-caption text-tertiary-fixed text-[12px] flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                    <span>Reply sent to @{activeStory.authorHandle}&apos;s chat!</span>
                   </motion.div>
                 )}
 

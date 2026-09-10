@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -249,7 +249,7 @@ export default function NotesPage() {
 
       <div className="md:ml-[86px] ml-0 flex-1 flex flex-col min-h-screen pb-28 md:pb-8">
 
-        {/* â”€â”€ STICKY HEADER â”€â”€ */}
+        {/* ---- STICKY HEADER ---- */}
         <div className="sticky top-0 z-20 bg-surface/85 backdrop-blur-xl border-b border-surface-container px-4 md:px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="material-symbols-outlined text-[22px] text-primary">sticky_note_2</span>
@@ -273,7 +273,7 @@ export default function NotesPage() {
 
         <div className="flex flex-col max-w-2xl mx-auto w-full px-4 md:px-6 pt-6 gap-6">
 
-          {/* â”€â”€ YOUR NOTE â”€â”€ */}
+          {/* ---- YOUR NOTE ---- */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="relative">
             {/* floating note bubble above avatar */}
             {currentNote && (
@@ -306,7 +306,11 @@ export default function NotesPage() {
                   </div>
                 </div>
                 <span className={`absolute bottom-0 right-0 w-5 h-5 rounded-full ${currentNote ? "bg-primary" : "bg-surface-container-high border border-outline-variant/30"} text-white flex items-center justify-center font-bold text-xs shadow-md ring-2 ring-surface`}>
-                  {currentNote ? "âœ“" : "+"}
+                  {currentNote ? (
+                    <span className="material-symbols-outlined text-[13px] leading-none">check</span>
+                  ) : (
+                    "+"
+                  )}
                 </span>
               </button>
 
@@ -344,10 +348,10 @@ export default function NotesPage() {
             </div>
           </motion.div>
 
-          {/* â”€â”€ DIVIDER â”€â”€ */}
+          {/* ---- DIVIDER ---- */}
           <div className="h-px bg-surface-container" />
 
-          {/* â”€â”€ FRIENDS' NOTES â”€â”€ */}
+          {/* ---- FRIENDS' NOTES ---- */}
           {usersWithNotes.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center py-16">
               <div className="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center mb-4">
@@ -464,7 +468,10 @@ export default function NotesPage() {
                                 <span className="material-symbols-outlined text-[14px] text-white">{isPlaying ? "pause" : "play_arrow"}</span>
                               </button>
                               <div className="flex-1 min-w-0">
-                                <p className="font-caption text-[11px] text-secondary font-bold truncate">ðŸŽµ {note.songTitle || "Audio Snippet"}</p>
+                                <p className="font-caption text-[11px] text-secondary font-bold truncate flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[13px]">music_note</span>
+                                  <span>{note.songTitle || "Audio Snippet"}</span>
+                                </p>
                                 {isPlaying && (
                                   <div className="flex items-end gap-0.5 mt-0.5 h-3">
                                     {[1,2,3,4,5].map(i => (
@@ -498,7 +505,7 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* â”€â”€ MOBILE FAB â”€â”€ */}
+      {/* ---- MOBILE FAB ---- */}
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.93 }}
@@ -508,7 +515,7 @@ export default function NotesPage() {
         <span className="material-symbols-outlined text-[24px]">edit_note</span>
       </motion.button>
 
-      {/* â”€â”€ CREATE / EDIT NOTE MODAL (bottom sheet on mobile) â”€â”€ */}
+      {/* ---- CREATE / EDIT NOTE MODAL (bottom sheet on mobile) ---- */}
       <AnimatePresence>
         {showNoteModal && (
           <motion.div
@@ -573,7 +580,7 @@ export default function NotesPage() {
                   />
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 flex-wrap">
-                      {["ðŸ”¥", "â¤ï¸", "âœ¨", "ðŸŽµ", "ðŸŽ§", "ðŸš€", "ðŸ˜´", "ðŸ˜‚", "â˜•", "ðŸŒŠ"].map(em => (
+                      {["\u{1F525}", "\u{2764}\u{FE0F}", "\u{2728}", "\u{1F3B5}", "\u{1F3A7}", "\u{1F680}", "\u{1F634}", "\u{1F602}", "\u{2615}", "\u{1F30A}"].map(em => (
                         <button key={em} type="button" onClick={() => setNoteText(prev => (prev + " " + em).trim().slice(0, 60))}
                           className="w-7 h-7 rounded-lg bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-xs cursor-pointer transition-transform hover:scale-110">
                           {em}
@@ -613,7 +620,10 @@ export default function NotesPage() {
                           <span className="material-symbols-outlined text-[18px]">{isModalPreviewPlaying ? "stop" : "play_arrow"}</span>
                         </button>
                         <div className="min-w-0 flex-1">
-                          <p className="font-caption text-secondary font-bold text-[12px] truncate">ðŸŽµ {customAudioName || "Custom Track"}</p>
+                          <p className="font-caption text-secondary font-bold text-[12px] truncate flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">music_note</span>
+                            <span>{customAudioName || "Custom Track"}</span>
+                          </p>
                           {isModalPreviewPlaying ? (
                             <div className="flex items-end gap-0.5 mt-0.5 h-3">
                               {[1,2,3,4,5].map(i => (
