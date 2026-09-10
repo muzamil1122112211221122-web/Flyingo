@@ -223,6 +223,9 @@ export default function NotesPage() {
 
     setCurrentNote(newNote);
     Storage.setCurrentUser({ note: newNote });
+    // Push to Supabase so other users can see this note
+    const updatedUser = Storage.getCurrentUser();
+    Storage.registerUser(updatedUser).catch(() => {});
     setShowNoteModal(false);
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
@@ -242,6 +245,9 @@ export default function NotesPage() {
     setAudioDuration(0);
     setAudioStartTime(0);
     Storage.setCurrentUser({ note: undefined });
+    // Push removal to Supabase so other users stop seeing this note
+    const updatedUser = Storage.getCurrentUser();
+    Storage.registerUser(updatedUser).catch(() => {});
     setShowNoteModal(false);
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();

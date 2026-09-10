@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { Storage, FlamingooStory, UserProfile } from "@/lib/storage";
+import { Realtime } from "@/lib/realtime";
 
 export default function FlamingoosPage() {
   const router = useRouter();
@@ -204,12 +205,26 @@ export default function FlamingoosPage() {
 
   const handleSendReply = () => {
     if (!replyText.trim() || !activeStory) return;
+    const cur = Storage.getCurrentUser();
+    if (cur && cur.handle && activeStory.authorHandle && cur.handle.toLowerCase() !== activeStory.authorHandle.toLowerCase()) {
+      const msg = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        sender: "me" as const,
+        senderHandle: cur.handle,
+        text: `↩ Story reply: ${replyText.trim()}`,
+        time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+        delivered: true,
+      };
+      Storage.saveDirectMessage(cur, activeStory.authorHandle, msg as any);
+      Realtime.sendDirectMessage(cur, activeStory.authorHandle, msg as any);
+    }
     setReplySentToast(true);
     setTimeout(() => {
       setReplySentToast(false);
       setReplyText("");
     }, 2000);
   };
+
 
   const gradientOptions = [
     { label: "Royal Dune", bg: "linear-gradient(135deg, #003973, #e5e5be)" },

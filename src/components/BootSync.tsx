@@ -36,9 +36,16 @@ export default function BootSync() {
     }
 
     // 4. Listen for real-time call broadcasts globally across all tabs/pages
+    //    Only show modal if WE are the RECIPIENT — caller handles their own modal in chat/page.tsx
     const unsubCall = Realtime.onCall((session) => {
       if (!session || session.status === "ended" || session.status === "declined") {
         setActiveCall(null);
+        return;
+      }
+      // If we are the caller, chat/page.tsx shows the modal — BootSync stays silent to avoid duplicates
+      const cur = Storage.getCurrentUser();
+      if (cur && cur.handle && session.callerHandle?.toLowerCase() === cur.handle.toLowerCase()) {
+        // We are the caller — don't show BootSync modal (chat/page.tsx handles it)
         return;
       }
       setActiveCall(session);

@@ -3260,6 +3260,21 @@ export default function ChatPage() {
       )}
 
 
+      {/* ── OUTGOING / CALLER CALL MODAL ── */}
+      {/* BootSync handles INCOMING calls on all pages. Chat page must handle the CALLER's own modal
+          because Realtime.sendCallEvent broadcasts with self:false, so BootSync won't fire on caller. */}
+      <AnimatePresence>
+        {activeCall && (
+          <CallModal
+            session={activeCall}
+            currentUser={currentUser}
+            onAccept={handleAcceptCall}
+            onDecline={handleDeclineCall}
+            onEnd={handleEndCall}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── MOBILE LONG-PRESS CONTEXT MENU ── */}
       <AnimatePresence>
         {contextMenu && (() => {

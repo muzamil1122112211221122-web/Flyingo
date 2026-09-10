@@ -1388,12 +1388,18 @@ export const Storage = {
       if (!error && data && data.length > 0) {
         const now = Date.now();
         const localStories = Storage.getStories();
+        // Build a quick lookup map of local stories so we can preserve likes/viewers/hasLiked
+        const localById = Object.fromEntries(localStories.map((s: FlamingooStory) => [s.id, s]));
+
         const remoteStories: FlamingooStory[] = data
           .map((row: any) => {
             let styleObj: any = {};
             try {
               if (row.text_style) styleObj = JSON.parse(row.text_style);
             } catch (e) {}
+
+            // Preserve engagement data (likes, viewers, hasLiked) from local cache
+            const localCopy = localById[row.id];
 
             return {
               id: row.id,
@@ -1414,8 +1420,10 @@ export const Storage = {
               timestamp: "Just now",
               createdTime: Number(row.created_time) || Date.now(),
               durationSeconds: row.duration_seconds || 15,
-              likes: 0,
-              viewers: [],
+              // Preserve local engagement data so remote fetch doesn't wipe them out
+              likes: localCopy?.likes || 0,
+              viewers: localCopy?.viewers || [],
+              hasLiked: localCopy?.hasLiked || false,
             };
           })
           .filter(s => (now - (s.createdTime || 0)) <= (24 * 60 * 60 * 1000));
