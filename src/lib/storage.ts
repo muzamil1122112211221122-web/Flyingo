@@ -266,19 +266,56 @@ export const AudioStorage = {
   }
 };
 
+// Compress avatar to max 80KB JPEG for localStorage
+export async function compressAvatar(dataUrl: string): Promise<string> {
+  if (typeof window === 'undefined') return dataUrl;
+  if (!dataUrl || !dataUrl.startsWith('data:image')) return dataUrl;
+  // Estimate size: base64 is ~33% larger than binary
+  const estimatedBytes = (dataUrl.length * 3) / 4;
+  if (estimatedBytes <= 80 * 1024) return dataUrl; // already small enough
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      // Resize to max 300x300
+      const maxDim = 300;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+        else { w = Math.round((w * maxDim) / h); h = maxDim; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      const compressed = canvas.toDataURL('image/jpeg', 0.72);
+      resolve(compressed);
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 export function sanitizeUserForStorage(user: UserProfile): UserProfile {
-  if (!user.note) return user;
-  if (user.note.audioDataUrl && (user.note.audioDataUrl.length > 300 || user.note.audioDataUrl.startsWith("data:audio"))) {
-    return {
-      ...user,
-      note: {
-        ...user.note,
-        audioKey: user.note.audioKey || `note_audio_${user.handle.toLowerCase()}`,
-        audioDataUrl: "[INDEXED_DB]",
-      },
+  const result = { ...user };
+
+  // Strip large audio from localStorage (stored in IndexedDB)
+  if (result.note?.audioDataUrl && (result.note.audioDataUrl.length > 300 || result.note.audioDataUrl.startsWith('data:audio'))) {
+    result.note = {
+      ...result.note,
+      audioKey: result.note.audioKey || `note_audio_${result.handle.toLowerCase()}`,
+      audioDataUrl: '[INDEXED_DB]',
     };
   }
-  return user;
+
+  // Cap large avatars in localStorage (full version stays in Supabase)
+  if (result.avatar && result.avatar.startsWith('data:image') && result.avatar.length > 200 * 1024) {
+    result.avatar = '/default-avatar.jpg';
+  }
+
+  return result;
 }
 
 export const Storage = {
@@ -462,6 +499,12 @@ export const Storage = {
     const modes = Storage.getPanicModes().filter(m => m.id !== config.id);
     modes.push(config);
     localStorage.setItem("flyingo_panic_modes", JSON.stringify(modes));
+
+    // Also persist panic modes to Supabase so they survive device changes
+    const cur = Storage.getRealCurrentUser();
+    if (cur?.handle && cur.handle !== 'guest') {
+      Storage.registerUser(cur).catch(() => {});
+    }
   },
 
   deletePanicMode: (id: string) => {
@@ -588,8 +631,17 @@ export const Storage = {
           createdAt: user.note.createdAt,
         } : null;
 
+        // Compress avatar before storing in Supabase (keeps badge_text column small)
+        let avatarForSupabase = user.avatar || '/default-avatar.jpg';
+        if (avatarForSupabase.startsWith('data:image') && typeof window !== 'undefined') {
+          try { avatarForSupabase = await compressAvatar(avatarForSupabase); } catch(e) {}
+        }
+
+        // Include panic modes so they survive device changes
+        const panicModes = typeof window !== 'undefined' ? Storage.getPanicModes().filter(m => m.id !== 'panic_academic_notes') : [];
+
         const profilePayload = {
-          avatar: user.avatar || "/default-avatar.jpg",
+          avatar: avatarForSupabase,
           bio: user.bio || "",
           link: user.link || "",
           links: user.links || [],
@@ -599,6 +651,7 @@ export const Storage = {
           badge: user.verifiedBadge?.enabled ? (user.verifiedBadge.label || user.verifiedBadge.icon) : null,
           customFriendsCount: user.customFriendsCount || "",
           note: validNote,
+          panicModes: panicModes.length > 0 ? panicModes : undefined,
         };
 
         await supabase.from("flyingo_users").upsert(
@@ -615,6 +668,7 @@ export const Storage = {
       console.warn("Supabase user sync error:", err);
     }
   },
+
 
   fetchRemoteUsers: async (): Promise<UserProfile[]> => {
     try {
@@ -677,6 +731,27 @@ export const Storage = {
                       durationDays: parsed.note.durationDays || 1,
                       createdAt: parsed.note.createdAt,
                     };
+                  }
+                }
+
+                // Restore panic modes for the current user from Supabase
+                if (
+                  parsed.panicModes &&
+                  Array.isArray(parsed.panicModes) &&
+                  typeof window !== 'undefined' &&
+                  dbUser.handle.toLowerCase() === Storage.getRealCurrentUser()?.handle?.toLowerCase()
+                ) {
+                  const existingModes = Storage.getPanicModes();
+                  const defaultId = 'panic_academic_notes';
+                  // Merge: keep default + restore saved custom modes
+                  const merged = [
+                    ...existingModes.filter(m => m.id === defaultId),
+                    ...parsed.panicModes.filter((m: PanicModeConfig) =>
+                      m.id !== defaultId && !existingModes.some(e => e.id === m.id)
+                    ),
+                  ];
+                  if (merged.length > 0) {
+                    localStorage.setItem('flyingo_panic_modes', JSON.stringify(merged));
                   }
                 }
               } else if (dbUser.verified === true && dbUser.badge_text !== "null" && dbUser.badge_text !== "") {
@@ -801,10 +876,12 @@ export const Storage = {
         payload.badge = null;
       }
 
-      await supabase.from("flyingo_users").update({
+      await supabase.from("flyingo_users").upsert({
+        handle: clean,
+        name: users.find(u => u.handle.toLowerCase() === clean)?.name || clean,
         verified: !!badge.enabled,
         badge_text: JSON.stringify(payload),
-      }).eq("handle", clean);
+      }, { onConflict: 'handle' });
     } catch (err) {
       console.warn("Supabase badge update error:", err);
     }

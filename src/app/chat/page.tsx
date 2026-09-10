@@ -312,7 +312,18 @@ export default function ChatPage() {
     const unsubReq = Realtime.onFriendRequest(() => syncChats());
     const unsubPres = Realtime.onPresence(() => setSyncTick(t => t + 1));
     const unsubTyping = Realtime.onTyping(() => syncChats());
-    const unsubCall = Realtime.onCall(() => syncChats());
+    const unsubCall = Realtime.onCall((session) => {
+      if (!session) {
+        setActiveCall(null);
+        return;
+      }
+      // Don't show call if it's already ended/declined
+      if (session.status === 'ended' || session.status === 'declined') {
+        setActiveCall(null);
+        return;
+      }
+      setActiveCall(session);
+    });
 
     return () => {
       window.removeEventListener("storage", handleStorage);
@@ -650,25 +661,31 @@ export default function ChatPage() {
       ? ((activeConv.members as string[] | undefined)?.find((m: string) => m.toLowerCase() !== currentUser.handle.toLowerCase()) || activeConv.handle)
       : activeConv.handle;
     const session = Storage.initiateCall(currentUser, target, type);
+    // BROADCAST over Supabase Realtime so recipient sees incoming call:
+    Realtime.sendCallEvent(session);
     setActiveCall(session);
   };
 
   const handleAcceptCall = () => {
     if (!activeCall) return;
     Storage.updateCallStatus(activeCall.callId, "accepted");
-    setActiveCall({ ...activeCall, status: "accepted" });
+    const accepted = { ...activeCall, status: "accepted" as const };
+    Realtime.sendCallEvent(accepted);
+    setActiveCall(accepted);
   };
 
   const handleDeclineCall = () => {
     if (!activeCall) return;
     Storage.updateCallStatus(activeCall.callId, "declined");
     Storage.clearCall();
+    Realtime.sendCallEvent(null);
     setActiveCall(null);
   };
 
   const handleEndCall = (durationSecs: number) => {
     if (!activeCall) return;
     Storage.updateCallStatus(activeCall.callId, "ended");
+    Realtime.sendCallEvent(null);
 
     const durationText = durationSecs > 0
       ? `${Math.floor(durationSecs / 60)}m ${durationSecs % 60}s`

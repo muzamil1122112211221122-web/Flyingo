@@ -3,6 +3,7 @@ import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import MotionProvider from "@/components/MotionProvider";
 import CustomTooltip from "@/components/CustomTooltip";
+import BootSync from "@/components/BootSync";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -58,6 +59,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${dmSans.variable} antialiased`}>
+        <BootSync />
         <MotionProvider>
           <CustomTooltip />
           {children}
