@@ -108,6 +108,8 @@ export default function ChatPage() {
   // Voice Note Recording
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingDurationRef = useRef(0);
+  const recordingStartTimeRef = useRef<number>(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -146,32 +148,6 @@ export default function ChatPage() {
   const [panicToast, setPanicToast] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Mobile virtual keyboard & viewport tracking so input bar stays cleanly in view
-  const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-
-    const handleVisualViewportChange = () => {
-      if (window.visualViewport) {
-        // Only constrain if the viewport actually shrinks significantly (keyboard opened)
-        const vh = window.visualViewport.height;
-        const wh = window.innerHeight;
-        if (vh < wh - 60) {
-          setMobileViewportHeight(vh);
-        } else {
-          setMobileViewportHeight(null);
-        }
-      }
-    };
-
-    const vv = window.visualViewport;
-    vv.addEventListener("resize", handleVisualViewportChange);
-    return () => {
-      vv.removeEventListener("resize", handleVisualViewportChange);
-    };
-  }, []);
 
   const loadPanicModeState = () => {
     const activePanic = Storage.getActivePanicMode();
@@ -563,24 +539,37 @@ export default function ChatPage() {
   const startVoiceRecording = async () => {
     setIsRecordingAudio(true);
     setRecordingDuration(0);
+    recordingDurationRef.current = 0;
+    recordingStartTimeRef.current = Date.now();
     audioChunksRef.current = [];
 
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     recordingTimerRef.current = setInterval(() => {
-      setRecordingDuration(d => d + 1);
+      const elapsed = Math.round((Date.now() - recordingStartTimeRef.current) / 1000);
+      setRecordingDuration(elapsed);
+      recordingDurationRef.current = elapsed;
     }, 1000);
 
     try {
       if (navigator?.mediaDevices?.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")
+          ? "audio/ogg;codecs=opus"
+          : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+
+        const options = mimeType ? { mimeType } : undefined;
+        const mediaRecorder = new MediaRecorder(stream, options);
         mediaRecorderRef.current = mediaRecorder;
 
         mediaRecorder.ondataavailable = e => {
-          if (e.data.size > 0) audioChunksRef.current.push(e.data);
+          if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
         };
 
-        mediaRecorder.start();
+        mediaRecorder.start(250); // collect in 250ms chunks
       }
     } catch (err) {
       console.warn("Microphone hardware or permission not available, operating in simulated voice note mode:", err);
@@ -595,32 +584,39 @@ export default function ChatPage() {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     setIsRecordingAudio(false);
     setRecordingDuration(0);
+    recordingDurationRef.current = 0;
     audioChunksRef.current = [];
   };
 
   const stopAndSendVoiceRecording = () => {
-    const duration = recordingDuration > 0 ? recordingDuration : 3;
+    const elapsed = recordingStartTimeRef.current > 0
+      ? Math.max(1, Math.round((Date.now() - recordingStartTimeRef.current) / 1000))
+      : Math.max(1, recordingDurationRef.current);
+
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     setIsRecordingAudio(false);
     setRecordingDuration(0);
+    recordingDurationRef.current = 0;
 
-    if (mediaRecorderRef.current && audioChunksRef.current.length > 0) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       const recorder = mediaRecorderRef.current;
       recorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const mimeType = recorder.mimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const reader = new FileReader();
         reader.onloadend = () => {
           const base64Audio = reader.result as string;
-          sendVoiceMessage(base64Audio, duration);
+          sendVoiceMessage(base64Audio, elapsed);
         };
         reader.readAsDataURL(audioBlob);
         recorder.stream.getTracks().forEach(t => t.stop());
+        mediaRecorderRef.current = null;
       };
       recorder.stop();
     } else {
       // Clean fallback audio note so user can always test even without microphone access
       const sampleAudio = "data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YRAAAAAAAP//AAD//wAA//8AAP//";
-      sendVoiceMessage(sampleAudio, duration);
+      sendVoiceMessage(sampleAudio, elapsed);
     }
   };
 
@@ -644,8 +640,10 @@ export default function ChatPage() {
 
     if (activeConvForSend.isGroup) {
       Storage.saveGroupMessage(activeConvId, newMsg as any, activeConvForSend.members || []);
+      Realtime.sendGroupMessage(activeConvId, newMsg as any, activeConvForSend.members || []);
     } else if (activeConvForSend.handle) {
       Storage.saveDirectMessage(currentUser, activeConvForSend.handle, newMsg as any);
+      Realtime.sendDirectMessage(currentUser, activeConvForSend.handle, newMsg as any);
     }
 
     const saved = Storage.getSavedConversations(currentUser.handle);
@@ -1358,7 +1356,6 @@ export default function ChatPage() {
 
       {/* ── RIGHT MAIN CHAT AREA (INSTAGRAM STYLE FULL SCREEN ON MOBILE) ── */}
       <main
-        style={mobileViewportHeight ? { height: `${mobileViewportHeight}px` } : undefined}
         className={`fixed inset-x-0 top-0 z-30 md:static md:flex-1 md:z-0 flex-col h-[100dvh] md:h-screen overflow-hidden bg-surface overscroll-none ${mobileView === "list" ? "hidden md:flex" : "flex"}`}
       >
         {requestSentToast && (
@@ -3262,18 +3259,6 @@ export default function ChatPage() {
         </motion.button>
       )}
 
-      {/* ── LIVE VOICE / VIDEO CALL MODAL ── */}
-      <AnimatePresence>
-        {activeCall && (
-          <CallModal
-            session={activeCall}
-            currentUser={currentUser}
-            onAccept={handleAcceptCall}
-            onDecline={handleDeclineCall}
-            onEnd={handleEndCall}
-          />
-        )}
-      </AnimatePresence>
 
       {/* ── MOBILE LONG-PRESS CONTEXT MENU ── */}
       <AnimatePresence>

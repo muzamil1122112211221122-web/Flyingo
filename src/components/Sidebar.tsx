@@ -166,6 +166,23 @@ export default function Sidebar({ hideBottomNav = false }: { hideBottomNav?: boo
           {navBtn("/icons/nav-notes.png", "/notes", "Notes", true, true)}
           {navBtn("/admin-shield.png", "/admin", "Admin Gateway", true, true)}
           {navBtn("settings", "/settings", "Settings", true)}
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            onClick={() => router.push("/profile")}
+            title="My Profile"
+            className={`relative w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all ${
+              isActive("/profile")
+                ? "ring-2 ring-[#003973] ring-offset-1 ring-offset-surface-container-lowest scale-105"
+                : ""
+            }`}
+            style={{ background: userAvatar ? "transparent" : "linear-gradient(135deg, #003973, #e5e5be)" }}
+          >
+            {userAvatar ? (
+              <img src={userAvatar} alt="avatar" className="w-full h-full object-cover rounded-full" />
+            ) : (
+              <span className="text-white font-bold text-[10px]">{userInitials}</span>
+            )}
+          </motion.button>
         </nav>
       )}
     </>

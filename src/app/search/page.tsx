@@ -18,10 +18,23 @@ export default function SearchPage() {
   useEffect(() => {
     const u = Storage.getCurrentUser();
     setCurrentUser(u);
+    const local = Storage.getAllUsers();
+    setUsers(local);
     Storage.fetchRemoteUsers().then(remoteUsers => {
       setUsers(remoteUsers);
     });
   }, []);
+
+  useEffect(() => {
+    if (!query.trim()) return;
+    const timer = setTimeout(async () => {
+      try {
+        const fresh = await Storage.fetchRemoteUsers();
+        setUsers(fresh);
+      } catch (e) {}
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   const openProfile = (user: UserProfile) => {
     setViewingUser(user);

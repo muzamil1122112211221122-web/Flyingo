@@ -69,6 +69,16 @@ export default function CallModal({
     const pc = new RTCPeerConnection(ICE_SERVERS);
     peerConnectionRef.current = pc;
 
+    // Proactively configure transceivers so audio/video are negotiated in SDP
+    try {
+      pc.addTransceiver("audio", { direction: "sendrecv" });
+      if (session.type === "video") {
+        pc.addTransceiver("video", { direction: "sendrecv" });
+      }
+    } catch (e) {
+      console.warn("Transceiver config fallback:", e);
+    }
+
     // Send local ICE candidates to peer over Supabase broadcast
     pc.onicecandidate = (event) => {
       if (event.candidate && isMounted) {
@@ -80,24 +90,28 @@ export default function CallModal({
 
     // Receive remote stream (Audio and/or Video)
     pc.ontrack = (event) => {
-      const [stream] = event.streams;
+      const stream = event.streams[0] || (event.track ? new MediaStream([event.track]) : null);
       if (stream) {
         setHasRemoteMedia(true);
         if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = stream;
-          remoteAudioRef.current.play().catch(() => {});
+          remoteAudioRef.current.play().catch((err) => console.warn("Audio autoplay blocked/waiting:", err));
         }
         if (remoteVideoRef.current && session.type === "video") {
           remoteVideoRef.current.srcObject = stream;
-          remoteVideoRef.current.play().catch(() => {});
+          remoteVideoRef.current.play().catch((err) => console.warn("Video autoplay blocked/waiting:", err));
         }
       }
     };
 
-    // Get user media
+    // Get user media with quality voice constraints
     const constraints: MediaStreamConstraints = {
-      audio: true,
-      video: session.type === "video",
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: session.type === "video" ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } : false,
     };
 
     navigator.mediaDevices
@@ -114,9 +128,15 @@ export default function CallModal({
           localVideoRef.current.srcObject = stream;
         }
 
-        // Add local tracks to peer connection
+        // Add local tracks or replace transceivers
+        const senders = pc.getSenders();
         stream.getTracks().forEach((track) => {
-          pc.addTrack(track, stream);
+          const matchingSender = senders.find(s => s.track?.kind === track.kind || (!s.track && s.track === null));
+          if (matchingSender) {
+            matchingSender.replaceTrack(track);
+          } else {
+            pc.addTrack(track, stream);
+          }
         });
 
         // The caller creates the SDP offer
@@ -130,6 +150,8 @@ export default function CallModal({
         console.warn("getUserMedia failed or not permitted:", err);
       });
 
+    const pendingCandidates: RTCIceCandidateInit[] = [];
+
     // Listen for WebRTC signal events (offer, answer, candidate) from peer
     const unsubSignal = Realtime.onCallSignal(async (signal) => {
       if (!isMounted || !peerConnectionRef.current) return;
@@ -138,15 +160,25 @@ export default function CallModal({
       try {
         if (signal.type === "offer" && signal.sdp && !isCaller) {
           await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          while (pendingCandidates.length > 0) {
+            const cand = pendingCandidates.shift();
+            if (cand) await peer.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
           const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
           Realtime.sendCallSignal(targetHandle, currentUser.handle, "answer", { sdp: answer });
         } else if (signal.type === "answer" && signal.sdp && isCaller) {
           await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          while (pendingCandidates.length > 0) {
+            const cand = pendingCandidates.shift();
+            if (cand) await peer.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
         } else if (signal.type === "candidate" && signal.candidate) {
-          try {
-            await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
-          } catch (e) {}
+          if (peer.remoteDescription) {
+            await peer.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+          } else {
+            pendingCandidates.push(signal.candidate);
+          }
         }
       } catch (err) {
         console.warn("Error handling WebRTC signal:", err);

@@ -16,12 +16,20 @@ export default function AudioPlayer({ src, durationSeconds, isMe }: AudioPlayerP
   const [playbackRate, setPlaybackRate] = useState(1);
 
   useEffect(() => {
+    if (durationSeconds && durationSeconds > 0) {
+      setDuration(durationSeconds);
+    }
+  }, [durationSeconds]);
+
+  useEffect(() => {
     const audio = new Audio(src);
     audioRef.current = audio;
 
     const onLoaded = () => {
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
         setDuration(Math.round(audio.duration));
+      } else if (durationSeconds && durationSeconds > 0) {
+        setDuration(durationSeconds);
       }
     };
 
