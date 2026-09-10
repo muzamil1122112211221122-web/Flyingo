@@ -38,11 +38,12 @@ export default function SearchPage() {
     }
   };
 
+  const cleanQuery = query.trim().replace(/^@/, "").toLowerCase();
   const results = users.filter(
     u => u.handle.toLowerCase() !== currentUser.handle.toLowerCase() &&
-         (u.name.toLowerCase().includes(query.toLowerCase()) ||
-          u.handle.toLowerCase().includes(query.toLowerCase()) ||
-          (u.bio && u.bio.toLowerCase().includes(query.toLowerCase())))
+         (u.name.toLowerCase().includes(cleanQuery) ||
+          u.handle.toLowerCase().includes(cleanQuery) ||
+          (u.bio && u.bio.toLowerCase().includes(cleanQuery)))
   );
 
   return (

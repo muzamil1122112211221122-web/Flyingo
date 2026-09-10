@@ -147,7 +147,7 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Mobile virtual keyboard & viewport tracking so input bar never disappears when typing or scrolling
+  // Mobile virtual keyboard & viewport tracking so input bar stays cleanly in view
   const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(null);
 
   useEffect(() => {
@@ -155,22 +155,21 @@ export default function ChatPage() {
 
     const handleVisualViewportChange = () => {
       if (window.visualViewport) {
-        setMobileViewportHeight(window.visualViewport.height);
-        // Pinned window scroll to prevent iOS Safari shifting fixed containers
-        if (window.scrollY !== 0) {
-          window.scrollTo(0, 0);
+        // Only constrain if the viewport actually shrinks significantly (keyboard opened)
+        const vh = window.visualViewport.height;
+        const wh = window.innerHeight;
+        if (vh < wh - 60) {
+          setMobileViewportHeight(vh);
+        } else {
+          setMobileViewportHeight(null);
         }
       }
     };
 
     const vv = window.visualViewport;
     vv.addEventListener("resize", handleVisualViewportChange);
-    vv.addEventListener("scroll", handleVisualViewportChange);
-    handleVisualViewportChange();
-
     return () => {
       vv.removeEventListener("resize", handleVisualViewportChange);
-      vv.removeEventListener("scroll", handleVisualViewportChange);
     };
   }, []);
 
@@ -757,11 +756,30 @@ export default function ChatPage() {
   };
 
   // Profile Viewing with 24h tracker integration
-  const openUserProfile = (u: UserProfile) => {
-    setViewingProfileUser(u);
-    // Record visit to their profile so it shows in their Admin Panel 24h visitors tracker!
-    if (currentUser.handle) {
-      Storage.recordProfileVisit(u.handle, currentUser.handle, currentUser.name);
+  const openUserProfile = (u: UserProfile | string) => {
+    let profile: UserProfile | null = null;
+    if (typeof u === "string") {
+      const clean = u.replace(/^@/, "").toLowerCase();
+      profile = Storage.getUserByHandle(clean);
+      if (!profile) {
+        profile = {
+          id: `u_${clean}`,
+          handle: clean,
+          name: `@${clean}`,
+          avatar: "/default-avatar.jpg",
+          createdAt: Date.now(),
+        };
+      }
+    } else {
+      profile = u;
+    }
+
+    if (profile) {
+      setViewingProfileUser(profile);
+      // Record visit to their profile so it shows in their Admin Panel 24h visitors tracker!
+      if (currentUser.handle && profile.handle) {
+        Storage.recordProfileVisit(profile.handle, currentUser.handle, currentUser.name);
+      }
     }
   };
 
@@ -864,14 +882,16 @@ export default function ChatPage() {
     startGroupConversation(newGroup);
   };
 
+  const cleanSearchQuery = searchQuery.trim().replace(/^@/, "").toLowerCase();
   const filteredConversations = conversations.filter(c =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.handle.toLowerCase().includes(searchQuery.toLowerCase())
+    c.name.toLowerCase().includes(cleanSearchQuery) ||
+    c.handle.toLowerCase().includes(cleanSearchQuery)
   );
 
+  const cleanFriendSearch = friendSearch.trim().replace(/^@/, "").toLowerCase();
   const filteredAllUsers = allUsers.filter(u =>
-    u.name.toLowerCase().includes(friendSearch.toLowerCase()) ||
-    u.handle.toLowerCase().includes(friendSearch.toLowerCase())
+    u.name.toLowerCase().includes(cleanFriendSearch) ||
+    u.handle.toLowerCase().includes(cleanFriendSearch)
   );
 
   const sentGradients: Record<string, string> = {
@@ -1371,7 +1391,7 @@ export default function ChatPage() {
                     setShowGroupInfo(true);
                   } else {
                     const partner = Storage.getUserByHandle(activeConv.handle);
-                    if (partner) openUserProfile(partner);
+                    openUserProfile(partner || activeConv.handle);
                   }
                 }}
                 className="flex items-center gap-3.5 cursor-pointer hover:opacity-85 transition-opacity flex-1 min-w-0"
@@ -1574,8 +1594,15 @@ export default function ChatPage() {
                         <img
                           src={senderAvatar}
                           alt={senderDisplayName}
-                          title={senderDisplayName}
-                          className="w-7 h-7 rounded-full object-cover flex-shrink-0 shadow-xs border border-outline-variant/15 mb-0.5"
+                          title={`Click to view @${msg.senderHandle || activeConv.handle}'s profile`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const targetHandle = msg.senderHandle || (isMe ? currentUser.handle : activeConv.handle);
+                            if (targetHandle) {
+                              openUserProfile(targetHandle);
+                            }
+                          }}
+                          className="w-7 h-7 rounded-full object-cover flex-shrink-0 shadow-xs border border-outline-variant/15 mb-0.5 hover:scale-110 active:scale-95 transition-transform cursor-pointer"
                         />
                         <div
                           className={`relative p-3.5 rounded-3xl shadow-sm ${
@@ -2146,12 +2173,8 @@ export default function ChatPage() {
                       }}
                       onFocus={() => {
                         setTimeout(() => {
-                          if (typeof window !== "undefined" && window.visualViewport) {
-                            setMobileViewportHeight(window.visualViewport.height);
-                          }
-                          window.scrollTo(0, 0);
                           messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-                        }, 180);
+                        }, 250);
                       }}
                       onKeyDown={e => { if (e.key === "Enter") sendMessage(); }}
                       placeholder={`Message @${activeConv.handle}...`}

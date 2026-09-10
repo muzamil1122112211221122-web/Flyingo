@@ -9,6 +9,7 @@ type FriendRequestCallback = (req: FriendRequest) => void;
 type PresenceCallback = (onlineHandles: string[]) => void;
 type TypingCallback = (channelId: string, handle: string, isTyping: boolean) => void;
 type CallCallback = (call: CallSession | null) => void;
+type CallSignalCallback = (signal: { senderHandle: string; recipientHandle: string; type: "offer" | "answer" | "candidate"; sdp?: any; candidate?: any }) => void;
 
 let globalChannel: ReturnType<typeof supabase.channel> | null = null;
 let currentSubscribedHandle: string | null = null;
@@ -18,6 +19,7 @@ const friendRequestListeners = new Set<FriendRequestCallback>();
 const presenceListeners = new Set<PresenceCallback>();
 const typingListeners = new Set<TypingCallback>();
 const callListeners = new Set<CallCallback>();
+const callSignalListeners = new Set<CallSignalCallback>();
 
 export const Realtime = {
   /**
@@ -186,6 +188,15 @@ export const Realtime = {
         localStorage.setItem("flyingo_active_call", JSON.stringify(call));
         callListeners.forEach((fn) => fn(call));
         window.dispatchEvent(new StorageEvent("storage", { key: "flyingo_active_call" }));
+      }
+    });
+
+    // ── 6. REAL-TIME WEBRTC AUDIO/VIDEO STREAM SIGNALING ──
+    channel.on("broadcast", { event: "call_signal" }, ({ payload }) => {
+      if (!payload) return;
+      const { signal } = payload;
+      if (signal && signal.recipientHandle?.toLowerCase() === cleanHandle) {
+        callSignalListeners.forEach((fn) => fn(signal));
       }
     });
 
@@ -441,6 +452,25 @@ export const Realtime = {
     } catch (e) {}
   },
 
+  /**
+   * Broadcast WebRTC stream signaling (offer, answer, candidate) to a peer.
+   */
+  sendCallSignal: (recipientHandle: string, senderHandle: string, type: "offer" | "answer" | "candidate", data: { sdp?: any; candidate?: any }) => {
+    if (!globalChannel) return;
+    globalChannel.send({
+      type: "broadcast",
+      event: "call_signal",
+      payload: {
+        signal: {
+          recipientHandle: recipientHandle.toLowerCase(),
+          senderHandle: senderHandle.toLowerCase(),
+          type,
+          ...data,
+        },
+      },
+    }).catch(() => {});
+  },
+
   onMessage: (fn: MessageCallback) => {
     messageListeners.add(fn);
     return () => messageListeners.delete(fn);
@@ -464,5 +494,10 @@ export const Realtime = {
   onCall: (fn: CallCallback) => {
     callListeners.add(fn);
     return () => callListeners.delete(fn);
+  },
+
+  onCallSignal: (fn: CallSignalCallback) => {
+    callSignalListeners.add(fn);
+    return () => callSignalListeners.delete(fn);
   },
 };

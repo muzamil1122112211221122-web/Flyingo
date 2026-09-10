@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CallSession, UserProfile, Storage } from "@/lib/storage";
+import { Realtime } from "@/lib/realtime";
 
 interface CallModalProps {
   session: CallSession;
@@ -11,6 +12,14 @@ interface CallModalProps {
   onDecline: () => void;
   onEnd: (durationSeconds: number) => void;
 }
+
+const ICE_SERVERS: RTCConfiguration = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+  ],
+};
 
 export default function CallModal({
   session,
@@ -28,9 +37,20 @@ export default function CallModal({
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(session.type === "video");
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [hasRemoteMedia, setHasRemoteMedia] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+
+  const targetHandle = isCaller ? session.recipientHandle : session.callerHandle;
+  const partnerUser = Storage.getUserByHandle(targetHandle);
+  const partnerHandle = targetHandle;
+  const partnerName = partnerUser?.name || (isCaller ? `@${session.recipientHandle}` : session.callerName);
+  const partnerAvatar = partnerUser?.avatar || (isCaller ? "/default-avatar.jpg" : session.callerAvatar);
 
   // Call timer when connected
   useEffect(() => {
@@ -41,43 +61,128 @@ export default function CallModal({
     return () => clearInterval(interval);
   }, [isConnected]);
 
-  // Handle local camera / mic
+  // Initialize WebRTC and Peer Connection when Call is active / accepted
   useEffect(() => {
-    if (isConnected && session.type === "video") {
-      navigator.mediaDevices
-        ?.getUserMedia({ video: true, audio: true })
-        .then(stream => {
-          mediaStreamRef.current = stream;
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-          }
-        })
-        .catch(() => {
-          // Fallback if camera is unavailable / denied
-        });
-    }
+    if (!isConnected) return;
 
-    return () => {
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(t => t.stop());
+    let isMounted = true;
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    peerConnectionRef.current = pc;
+
+    // Send local ICE candidates to peer over Supabase broadcast
+    pc.onicecandidate = (event) => {
+      if (event.candidate && isMounted) {
+        Realtime.sendCallSignal(targetHandle, currentUser.handle, "candidate", {
+          candidate: event.candidate.toJSON(),
+        });
       }
     };
-  }, [isConnected, session.type]);
+
+    // Receive remote stream (Audio and/or Video)
+    pc.ontrack = (event) => {
+      const [stream] = event.streams;
+      if (stream) {
+        setHasRemoteMedia(true);
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.play().catch(() => {});
+        }
+        if (remoteVideoRef.current && session.type === "video") {
+          remoteVideoRef.current.srcObject = stream;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+      }
+    };
+
+    // Get user media
+    const constraints: MediaStreamConstraints = {
+      audio: true,
+      video: session.type === "video",
+    };
+
+    navigator.mediaDevices
+      ?.getUserMedia(constraints)
+      .then(async (stream) => {
+        if (!isMounted) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        localStreamRef.current = stream;
+
+        // Attach to local video PiP
+        if (localVideoRef.current && session.type === "video") {
+          localVideoRef.current.srcObject = stream;
+        }
+
+        // Add local tracks to peer connection
+        stream.getTracks().forEach((track) => {
+          pc.addTrack(track, stream);
+        });
+
+        // The caller creates the SDP offer
+        if (isCaller) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          Realtime.sendCallSignal(targetHandle, currentUser.handle, "offer", { sdp: offer });
+        }
+      })
+      .catch((err) => {
+        console.warn("getUserMedia failed or not permitted:", err);
+      });
+
+    // Listen for WebRTC signal events (offer, answer, candidate) from peer
+    const unsubSignal = Realtime.onCallSignal(async (signal) => {
+      if (!isMounted || !peerConnectionRef.current) return;
+      const peer = peerConnectionRef.current;
+
+      try {
+        if (signal.type === "offer" && signal.sdp && !isCaller) {
+          await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          Realtime.sendCallSignal(targetHandle, currentUser.handle, "answer", { sdp: answer });
+        } else if (signal.type === "answer" && signal.sdp && isCaller) {
+          await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        } else if (signal.type === "candidate" && signal.candidate) {
+          try {
+            await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          } catch (e) {}
+        }
+      } catch (err) {
+        console.warn("Error handling WebRTC signal:", err);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubSignal();
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+    };
+  }, [isConnected, isCaller, targetHandle, currentUser.handle, session.type]);
 
   const toggleMic = () => {
-    setIsMuted(prev => !prev);
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getAudioTracks().forEach(track => {
-        track.enabled = isMuted; // Toggle state inverted
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !nextMuted;
       });
     }
   };
 
   const toggleVideo = () => {
-    setIsVideoEnabled(prev => !prev);
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getVideoTracks().forEach(track => {
-        track.enabled = !isVideoEnabled;
+    const nextVideo = !isVideoEnabled;
+    setIsVideoEnabled(nextVideo);
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach((track) => {
+        track.enabled = nextVideo;
       });
     }
   };
@@ -88,14 +193,11 @@ export default function CallModal({
     return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
-  const targetHandle = isCaller ? session.recipientHandle : session.callerHandle;
-  const partnerUser = Storage.getUserByHandle(targetHandle);
-  const partnerHandle = targetHandle;
-  const partnerName = partnerUser?.name || (isCaller ? `@${session.recipientHandle}` : session.callerName);
-  const partnerAvatar = partnerUser?.avatar || (isCaller ? "/default-avatar.jpg" : session.callerAvatar);
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      {/* Hidden audio element for receiving peer audio */}
+      <audio ref={remoteAudioRef} autoPlay playsInline muted={!isSpeakerOn} />
+
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -127,15 +229,25 @@ export default function CallModal({
         <div className="relative w-full aspect-square max-w-[280px] mb-8 flex items-center justify-center">
           {session.type === "video" && isConnected ? (
             <div className="relative w-full h-full rounded-3xl overflow-hidden bg-black/40 border border-outline-variant/30 flex items-center justify-center">
-              {/* Main remote video / simulated view */}
-              <div className="flex flex-col items-center justify-center text-center p-4">
-                <img
-                  src={partnerAvatar}
-                  alt={partnerName}
-                  className="w-24 h-24 rounded-full object-cover shadow-lg border-2 border-primary mb-3"
-                />
-                <span className="font-caption text-white/70 text-[12px]">Remote Video Stream Connected</span>
-              </div>
+              {/* Main remote video stream */}
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className={`w-full h-full object-cover ${hasRemoteMedia ? "block" : "hidden"}`}
+              />
+
+              {/* Fallback avatar if remote video track hasn't arrived yet */}
+              {!hasRemoteMedia && (
+                <div className="flex flex-col items-center justify-center text-center p-4">
+                  <img
+                    src={partnerAvatar}
+                    alt={partnerName}
+                    className="w-24 h-24 rounded-full object-cover shadow-lg border-2 border-primary mb-3"
+                  />
+                  <span className="font-caption text-white/70 text-[12px]">Connecting Video Stream...</span>
+                </div>
+              )}
 
               {/* PiP Local Video View */}
               {isVideoEnabled && (
