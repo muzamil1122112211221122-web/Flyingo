@@ -40,6 +40,15 @@ export default function NotesPage() {
       if (!isMounted) return;
 
       const user = Storage.getCurrentUser();
+      const now = Date.now();
+      if (user.note && user.note.createdAt && (now - user.note.createdAt) > ((user.note.durationDays || 1) * 86400000)) {
+        user.note = undefined;
+        Storage.setCurrentUser({ note: undefined });
+        setCurrentNote(null);
+        setNoteText("");
+        setCustomAudioUrl(null);
+        setCustomAudioName("");
+      }
       setCurrentUser(user);
 
       if (user.note) {
@@ -241,7 +250,8 @@ export default function NotesPage() {
     setPlayingAudioUrl(null);
   };
 
-  const usersWithNotes = allUsers.filter(u => !!u.note);
+  const now = Date.now();
+  const usersWithNotes = allUsers.filter(u => !!u.note && (!u.note.createdAt || (now - u.note.createdAt) <= ((u.note.durationDays || 1) * 86400000)));
 
   return (
     <div className="min-h-screen bg-surface flex text-on-surface overflow-x-hidden">

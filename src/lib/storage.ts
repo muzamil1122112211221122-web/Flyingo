@@ -490,6 +490,28 @@ export const Storage = {
 
   getAllUsers: (): UserProfile[] => {
     if (typeof window === "undefined") return [];
+
+    // Auto-migrate stale badges once across clients
+    if (!localStorage.getItem("flyingo_badges_migrated_v4")) {
+      localStorage.setItem("flyingo_badges_migrated_v4", "true");
+      try {
+        const raw = localStorage.getItem("flyingo_all_users");
+        if (raw) {
+          const list: UserProfile[] = JSON.parse(raw);
+          const cleaned = list.map(u => ({ ...u, verifiedBadge: undefined }));
+          localStorage.setItem("flyingo_all_users", JSON.stringify(cleaned));
+        }
+      } catch (e) {}
+      try {
+        const cur = sessionStorage.getItem("flyingo_current_user");
+        if (cur) {
+          const parsed = JSON.parse(cur);
+          delete parsed.verifiedBadge;
+          sessionStorage.setItem("flyingo_current_user", JSON.stringify(parsed));
+        }
+      } catch (e) {}
+    }
+
     const saved = localStorage.getItem("flyingo_all_users");
     let users: UserProfile[] = [];
     if (saved) {
@@ -498,8 +520,21 @@ export const Storage = {
         users = users.filter(u => !MOCK_HANDLES.includes((u.handle || "").toLowerCase()));
       } catch (e) {}
     }
+    const now = Date.now();
+    users.forEach(u => {
+      if (u.note && u.note.createdAt && (now - u.note.createdAt) > ((u.note.durationDays || 1) * 24 * 60 * 60 * 1000)) {
+        u.note = undefined;
+      }
+    });
+
     const current = Storage.getCurrentUser();
     if (current && current.handle && current.handle !== "guest") {
+      if (current.note && current.note.createdAt && (now - current.note.createdAt) > ((current.note.durationDays || 1) * 24 * 60 * 60 * 1000)) {
+        current.note = undefined;
+        try {
+          sessionStorage.setItem("flyingo_current_user", JSON.stringify(sanitizeUserForStorage(current)));
+        } catch (e) {}
+      }
       const idx = users.findIndex(u => u.handle.toLowerCase() === current.handle.toLowerCase());
       const sanitized = sanitizeUserForStorage(current);
       if (idx >= 0) {
@@ -543,6 +578,16 @@ export const Storage = {
 
     try {
       if (user.handle && user.handle !== "guest") {
+        const noteExpired = user.note?.createdAt && (Date.now() - user.note.createdAt) > ((user.note.durationDays || 1) * 24 * 60 * 60 * 1000);
+        const validNote = (user.note && !noteExpired) ? {
+          type: user.note.type,
+          text: user.note.text || "",
+          songTitle: user.note.songTitle || "",
+          artist: user.note.artist || "",
+          durationDays: user.note.durationDays,
+          createdAt: user.note.createdAt,
+        } : null;
+
         const profilePayload = {
           avatar: user.avatar || "/default-avatar.jpg",
           bio: user.bio || "",
@@ -550,9 +595,10 @@ export const Storage = {
           links: user.links || [],
           gender: user.gender || "",
           pronouns: user.pronouns || "",
+          verifiedBadge: user.verifiedBadge?.enabled ? user.verifiedBadge : null,
           badge: user.verifiedBadge?.enabled ? (user.verifiedBadge.label || user.verifiedBadge.icon) : null,
           customFriendsCount: user.customFriendsCount || "",
-          note: user.note ? { type: user.note.type, text: user.note.text || "", songTitle: user.note.songTitle || "", artist: user.note.artist || "", durationDays: user.note.durationDays, createdAt: user.note.createdAt } : null,
+          note: validNote,
         };
 
         await supabase.from("flyingo_users").upsert(
@@ -576,6 +622,8 @@ export const Storage = {
       if (!error && data && data.length > 0) {
         const localUsers = Storage.getAllUsers();
         const merged = [...localUsers];
+        const now = Date.now();
+
         data.forEach(dbUser => {
           if (MOCK_HANDLES.includes(dbUser.handle.toLowerCase())) return;
 
@@ -600,23 +648,43 @@ export const Storage = {
                 if (parsed.gender) gender = parsed.gender;
                 if (parsed.pronouns) pronouns = parsed.pronouns;
                 if (parsed.customFriendsCount) customFriendsCount = parsed.customFriendsCount;
-                if (parsed.badge) {
-                  verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: parsed.badge };
+
+                // STRICT: Only assign verifiedBadge if dbUser.verified is true
+                if (dbUser.verified === true) {
+                  if (parsed.verifiedBadge && parsed.verifiedBadge.enabled !== false) {
+                    verifiedBadge = {
+                      enabled: true,
+                      color: parsed.verifiedBadge.color || "#00daf3",
+                      icon: parsed.verifiedBadge.icon || "verified",
+                      label: parsed.verifiedBadge.label || undefined,
+                    };
+                  } else if (parsed.badge) {
+                    verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: parsed.badge };
+                  } else {
+                    verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: "Verified" };
+                  }
                 }
-                if (parsed.note) {
-                  note = {
-                    type: parsed.note.type || "text",
-                    text: parsed.note.text || undefined,
-                    songTitle: parsed.note.songTitle || undefined,
-                    artist: parsed.note.artist || undefined,
-                    durationDays: parsed.note.durationDays || 1,
-                    createdAt: parsed.note.createdAt || Date.now(),
-                  };
+
+                // Note expiration check
+                if (parsed.note && parsed.note.createdAt) {
+                  const durationMs = (parsed.note.durationDays || 1) * 24 * 60 * 60 * 1000;
+                  if ((now - parsed.note.createdAt) <= durationMs) {
+                    note = {
+                      type: parsed.note.type || "text",
+                      text: parsed.note.text || undefined,
+                      songTitle: parsed.note.songTitle || undefined,
+                      artist: parsed.note.artist || undefined,
+                      durationDays: parsed.note.durationDays || 1,
+                      createdAt: parsed.note.createdAt,
+                    };
+                  }
                 }
-              } else if (dbUser.badge_text !== "null" && dbUser.badge_text !== "") {
+              } else if (dbUser.verified === true && dbUser.badge_text !== "null" && dbUser.badge_text !== "") {
                 verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: dbUser.badge_text };
               }
             } catch (e) {}
+          } else if (dbUser.verified === true) {
+            verifiedBadge = { enabled: true, color: "#00daf3", icon: "verified", label: "Verified" };
           }
 
           const found = merged.find(u => u.handle.toLowerCase() === dbUser.handle.toLowerCase());
@@ -644,12 +712,14 @@ export const Storage = {
             if (gender) found.gender = gender;
             if (pronouns) found.pronouns = pronouns;
             if (customFriendsCount) found.customFriendsCount = customFriendsCount;
-            if (note) found.note = note;
-            if (verifiedBadge) found.verifiedBadge = verifiedBadge;
+            // Unconditionally sync note and verifiedBadge so expired notes and revoked badges clear immediately
+            found.note = note;
+            found.verifiedBadge = verifiedBadge;
           }
         });
+
         if (typeof window !== "undefined") {
-          localStorage.setItem("flyingo_all_users", JSON.stringify(merged));
+          localStorage.setItem("flyingo_all_users", JSON.stringify(merged.map(sanitizeUserForStorage)));
 
           // Also update active session if current user exists in cloud
           const cur = Storage.getCurrentUser();
@@ -657,6 +727,8 @@ export const Storage = {
             const remoteCurrent = merged.find(u => u.handle.toLowerCase() === cur.handle.toLowerCase());
             if (remoteCurrent) {
               const updatedSession = { ...cur, ...remoteCurrent };
+              updatedSession.verifiedBadge = remoteCurrent.verifiedBadge;
+              updatedSession.note = remoteCurrent.note;
               sessionStorage.setItem("flyingo_current_user", JSON.stringify(sanitizeUserForStorage(updatedSession)));
             }
           }
@@ -669,28 +741,108 @@ export const Storage = {
     return Storage.getAllUsers();
   },
 
-  setUserBadge: (handle: string, badge: VerifiedBadge) => {
+  setUserBadge: async (handle: string, badge: VerifiedBadge) => {
     const users = Storage.getAllUsers();
     const clean = handle.replace(/^@/, "").toLowerCase();
     const updated = users.map(u => {
       if (u.handle.toLowerCase() === clean) {
-        return { ...u, verifiedBadge: badge };
+        return { ...u, verifiedBadge: badge.enabled ? badge : undefined };
       }
       return u;
     });
-    localStorage.setItem("flyingo_all_users", JSON.stringify(updated));
-
-    const current = Storage.getCurrentUser();
-    if (current.handle.toLowerCase() === clean) {
-      Storage.setCurrentUser({ verifiedBadge: badge });
+    if (typeof window !== "undefined") {
+      localStorage.setItem("flyingo_all_users", JSON.stringify(updated.map(sanitizeUserForStorage)));
     }
 
-    supabase.from("flyingo_users").update({
-      verified: badge.enabled,
-      badge_text: badge.enabled ? (badge.label || badge.icon) : null,
-    }).eq("handle", clean).then();
+    const current = Storage.getCurrentUser();
+    if (current.handle && current.handle.toLowerCase() === clean) {
+      Storage.setCurrentUser({ verifiedBadge: badge.enabled ? badge : undefined });
+    }
+
+    try {
+      // Fetch existing user record from Supabase so we don't overwrite avatar or other fields
+      const { data: dbUser } = await supabase
+        .from("flyingo_users")
+        .select("badge_text")
+        .eq("handle", clean)
+        .maybeSingle();
+
+      let payload: any = {};
+      if (dbUser?.badge_text && dbUser.badge_text.startsWith("{")) {
+        try {
+          payload = JSON.parse(dbUser.badge_text);
+        } catch (e) {}
+      } else {
+        const localTarget = users.find(u => u.handle.toLowerCase() === clean);
+        if (localTarget) {
+          payload = {
+            avatar: localTarget.avatar || "/default-avatar.jpg",
+            bio: localTarget.bio || "",
+            link: localTarget.link || "",
+            links: localTarget.links || [],
+            gender: localTarget.gender || "",
+            pronouns: localTarget.pronouns || "",
+            customFriendsCount: localTarget.customFriendsCount || "",
+            note: localTarget.note || null,
+          };
+        }
+      }
+
+      if (badge.enabled) {
+        payload.verifiedBadge = {
+          enabled: true,
+          color: badge.color || "#00daf3",
+          icon: badge.icon || "verified",
+          label: badge.label || undefined,
+        };
+        payload.badge = badge.label || badge.icon || "verified";
+      } else {
+        payload.verifiedBadge = null;
+        payload.badge = null;
+      }
+
+      await supabase.from("flyingo_users").update({
+        verified: !!badge.enabled,
+        badge_text: JSON.stringify(payload),
+      }).eq("handle", clean);
+    } catch (err) {
+      console.warn("Supabase badge update error:", err);
+    }
 
     return updated;
+  },
+
+  resetAllBadges: async () => {
+    if (typeof window !== "undefined") {
+      const users = Storage.getAllUsers();
+      const updated = users.map(u => ({ ...u, verifiedBadge: undefined }));
+      localStorage.setItem("flyingo_all_users", JSON.stringify(updated.map(sanitizeUserForStorage)));
+      const cur = Storage.getCurrentUser();
+      if (cur && cur.handle) {
+        delete cur.verifiedBadge;
+        sessionStorage.setItem("flyingo_current_user", JSON.stringify(sanitizeUserForStorage(cur)));
+      }
+    }
+    try {
+      const { data: allUsers } = await supabase.from("flyingo_users").select("handle, badge_text");
+      if (allUsers) {
+        for (const u of allUsers) {
+          let newBadgeText = null;
+          if (u.badge_text && u.badge_text.startsWith("{")) {
+            try {
+              const parsed = JSON.parse(u.badge_text);
+              delete parsed.badge;
+              delete parsed.verifiedBadge;
+              newBadgeText = JSON.stringify(parsed);
+            } catch (e) {}
+          }
+          await supabase.from("flyingo_users").update({
+            verified: false,
+            badge_text: newBadgeText,
+          }).eq("handle", u.handle);
+        }
+      }
+    } catch (e) {}
   },
 
   setUserFriendsCount: (handle: string, count: string) => {
@@ -812,6 +964,17 @@ export const Storage = {
         Storage.addMutualFriend(req.fromHandle, req.toHandle);
       }
     }
+  },
+
+  cancelFriendRequest: (requestId: string) => {
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem("flyingo_friend_requests");
+    let reqs: FriendRequest[] = [];
+    if (saved) {
+      try { reqs = JSON.parse(saved); } catch (e) {}
+    }
+    reqs = reqs.filter(r => r.id !== requestId);
+    localStorage.setItem("flyingo_friend_requests", JSON.stringify(reqs));
   },
 
   addMutualFriend: (handleA: string, handleB: string) => {
@@ -1066,14 +1229,20 @@ export const Storage = {
     updateStub(cleanRecipient, cleanSender, senderUser.name || cleanSender, senderUser.avatar || "/default-avatar.jpg");
   },
 
-  // Stories (Flamingoos)
+  // Stories (Flamingoos) - 24 hours expiration
   getStories: (): FlamingooStory[] => {
     if (typeof window === "undefined") return [];
     const saved = localStorage.getItem("flyingo_stories");
     if (saved) {
       try {
         let list: FlamingooStory[] = JSON.parse(saved);
-        const clean = list.filter(s => !MOCK_HANDLES.includes((s.authorHandle || "").toLowerCase()));
+        const now = Date.now();
+        const clean = list.filter(s => {
+          if (MOCK_HANDLES.includes((s.authorHandle || "").toLowerCase())) return false;
+          // Expire stories older than 24 hours (86,400,000 ms)
+          if (s.createdTime && (now - s.createdTime) > (24 * 60 * 60 * 1000)) return false;
+          return true;
+        });
         if (clean.length !== list.length) {
           localStorage.setItem("flyingo_stories", JSON.stringify(clean));
         }
@@ -1140,41 +1309,46 @@ export const Storage = {
         .limit(100);
 
       if (!error && data && data.length > 0) {
+        const now = Date.now();
         const localStories = Storage.getStories();
-        const remoteStories: FlamingooStory[] = data.map((row: any) => {
-          let styleObj: any = {};
-          try {
-            if (row.text_style) styleObj = JSON.parse(row.text_style);
-          } catch (e) {}
+        const remoteStories: FlamingooStory[] = data
+          .map((row: any) => {
+            let styleObj: any = {};
+            try {
+              if (row.text_style) styleObj = JSON.parse(row.text_style);
+            } catch (e) {}
 
-          return {
-            id: row.id,
-            userId: styleObj.userId || `u_${row.author_handle}`,
-            authorName: row.author_name || `@${row.author_handle}`,
-            authorHandle: row.author_handle,
-            authorAvatar: row.author_avatar || "/default-avatar.jpg",
-            type: styleObj.type || (row.media_url ? "image" : "text"),
-            content: row.text_content || undefined,
-            mediaUrl: row.media_url || undefined,
-            background: row.bg_color || "#131b2e",
-            fontFamily: styleObj.font || "sans",
-            isBold: styleObj.bold || false,
-            isItalic: styleObj.italic || false,
-            isUnderline: styleObj.underline || false,
-            textXOffset: styleObj.textXOffset || 0,
-            textYOffset: styleObj.textYOffset || 0,
-            timestamp: "Just now",
-            createdTime: Number(row.created_time) || Date.now(),
-            durationSeconds: row.duration_seconds || 15,
-            likes: 0,
-            viewers: [],
-          };
-        });
+            return {
+              id: row.id,
+              userId: styleObj.userId || `u_${row.author_handle}`,
+              authorName: row.author_name || `@${row.author_handle}`,
+              authorHandle: row.author_handle,
+              authorAvatar: row.author_avatar || "/default-avatar.jpg",
+              type: styleObj.type || (row.media_url ? "image" : "text"),
+              content: row.text_content || undefined,
+              mediaUrl: row.media_url || undefined,
+              background: row.bg_color || "#131b2e",
+              fontFamily: styleObj.font || "sans",
+              isBold: styleObj.bold || false,
+              isItalic: styleObj.italic || false,
+              isUnderline: styleObj.underline || false,
+              textXOffset: styleObj.textXOffset || 0,
+              textYOffset: styleObj.textYOffset || 0,
+              timestamp: "Just now",
+              createdTime: Number(row.created_time) || Date.now(),
+              durationSeconds: row.duration_seconds || 15,
+              likes: 0,
+              viewers: [],
+            };
+          })
+          .filter(s => (now - (s.createdTime || 0)) <= (24 * 60 * 60 * 1000));
 
-        // Merge: remote + local
+        // Merge: remote + local (both filtered to non-expired)
         const merged = [...remoteStories];
         localStories.forEach(ls => {
-          if (!merged.find(rs => rs.id === ls.id)) merged.push(ls);
+          if ((now - (ls.createdTime || 0)) <= (24 * 60 * 60 * 1000) && !merged.find(rs => rs.id === ls.id)) {
+            merged.push(ls);
+          }
         });
 
         if (typeof window !== "undefined") {

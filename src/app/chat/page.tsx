@@ -71,9 +71,12 @@ export default function ChatPage() {
   const [activeTab, setActiveTab] = useState<"chats" | "requests" | "groups">("chats");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFindFriends, setShowFindFriends] = useState(false);
+  const [findFriendsTab, setFindFriendsTab] = useState<"discover" | "sent">("discover");
   const [friendSearch, setFriendSearch] = useState("");
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
+  const [friendsList, setFriendsList] = useState<string[]>([]);
   const [viewingProfileUser, setViewingProfileUser] = useState<UserProfile | null>(null);
   const [requestSentToast, setRequestSentToast] = useState("");
 
@@ -84,6 +87,7 @@ export default function ChatPage() {
   const [newGroupDesc, setNewGroupDesc] = useState("");
   const [newGroupAvatar, setNewGroupAvatar] = useState<string>("/default-avatar.jpg");
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([]);
+  const [groupMemberSearch, setGroupMemberSearch] = useState("");
   const [showGroupInfo, setShowGroupInfo] = useState(false);
 
   // Rich Chat Input: Attachments (Photos, Docs, Files), Emojis & GIFs
@@ -211,6 +215,8 @@ export default function ChatPage() {
     if (user.handle) {
       Realtime.init(user);
       setFriendRequests(Storage.getFriendRequests(user.handle));
+      setSentRequests(Storage.getSentRequests(user.handle));
+      setFriendsList(Storage.getFriends(user.handle));
       setGroups(Storage.getGroups(user.handle));
       const activePanic = Storage.getActivePanicMode();
       if (!activePanic) {
@@ -238,6 +244,8 @@ export default function ChatPage() {
 
       // Refresh friend requests & groups
       setFriendRequests(Storage.getFriendRequests(activeUser.handle));
+      setSentRequests(Storage.getSentRequests(activeUser.handle));
+      setFriendsList(Storage.getFriends(activeUser.handle));
       setGroups(Storage.getGroups(activeUser.handle));
 
       // Refresh conversation stubs
@@ -753,9 +761,17 @@ export default function ChatPage() {
         status: "pending",
         createdAt: Date.now(),
       });
-      setRequestSentToast(`✓ Friend request sent to @${cleanTo}!`);
+      setSentRequests(Storage.getSentRequests(currentUser.handle));
+      setRequestSentToast(`Friend request sent to @${cleanTo}!`);
       setTimeout(() => setRequestSentToast(""), 3000);
     }
+  };
+
+  const handleCancelSentRequest = (reqId: string) => {
+    Storage.cancelFriendRequest(reqId);
+    setSentRequests(Storage.getSentRequests(currentUser.handle));
+    setRequestSentToast("Request canceled");
+    setTimeout(() => setRequestSentToast(""), 2000);
   };
 
   const handleAcceptRequest = (req: FriendRequest) => {
@@ -877,37 +893,37 @@ export default function ChatPage() {
       <Sidebar hideBottomNav={mobileView === "chat"} />
 
       {/* ── LEFT PANE ── */}
-      <section className={`md:ml-[86px] w-full md:w-[390px] flex-shrink-0 flex-col bg-surface-container-lowest/90 backdrop-blur-2xl shadow-[4px_0_24px_rgba(19,27,46,0.03)] z-10 border-r border-outline-variant/10 overflow-hidden ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+      <section className={`md:ml-[86px] w-full md:w-[390px] flex-shrink-0 flex-col bg-surface-container-lowest/95 backdrop-blur-2xl shadow-[4px_0_24px_rgba(19,27,46,0.03)] z-10 border-r border-outline-variant/10 overflow-hidden ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
 
-        {/* Header with REAL User DP and Dynamic Verified Badge */}
-        <div className="p-5 pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
+        {/* Header with User DP, Verified Badge and Actions */}
+        <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative flex-shrink-0">
               <motion.button
-                whileHover={{ scale: 1.09 }} whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.94 }}
                 onClick={() => router.push("/profile")}
-                className="w-11 h-11 rounded-2xl overflow-hidden shadow-md flex items-center justify-center p-0.5 bg-surface-container border border-outline-variant/20 cursor-pointer"
-                title="View Bio Studio"
+                className="w-11 h-11 rounded-full p-[2px] bg-gradient-to-tr from-primary via-secondary to-tertiary shadow-sm flex items-center justify-center cursor-pointer group"
+                title="View Profile"
               >
                 <img
                   src={currentUser.avatar || "/default-avatar.jpg"}
                   alt={currentUser.name || "Profile"}
-                  className="w-full h-full object-cover rounded-xl"
+                  className="w-full h-full object-cover rounded-full bg-surface group-hover:scale-105 transition-transform"
                 />
               </motion.button>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full ring-2 ring-surface-container-lowest" />
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-surface shadow-xs" />
             </div>
 
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="font-title-md font-bold truncate text-on-surface">
+                <span className="font-title-md font-bold truncate text-on-surface text-[15px]">
                   {currentUser.name || `@${currentUser.handle}`}
                 </span>
                 {currentUser.verifiedBadge?.enabled && (
                   <VerifiedBadge
                     icon={currentUser.verifiedBadge.icon || "verified"}
                     color={currentUser.verifiedBadge.color || "#00daf3"}
-                    size={20}
+                    size={16}
                     title={currentUser.verifiedBadge.label || "Verified Account"}
                   />
                 )}
@@ -918,70 +934,120 @@ export default function ChatPage() {
             </div>
           </div>
 
+          {/* Top Actions */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <motion.button
-              whileHover={{ scale: 1.12, rotate: 5 }} whileTap={{ scale: 0.92 }}
-              onClick={() => { setShowFindFriends(true); Storage.fetchRemoteUsers().then(users => setAllUsers(users.filter(u => u.handle.toLowerCase() !== currentUser.handle.toLowerCase()))); }}
-              title="Find Friends / Send Friend Request"
-              className="w-9 h-9 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md shadow-primary/30 transition-all cursor-pointer"
+              whileTap={{ scale: 0.92 }}
+              onClick={() => {
+                setShowFindFriends(true);
+                Storage.fetchRemoteUsers().then(users => setAllUsers(users.filter(u => u.handle.toLowerCase() !== currentUser.handle.toLowerCase())));
+              }}
+              title="Find Friends"
+              className="w-9 h-9 rounded-full bg-primary/10 hover:bg-primary/20 text-primary flex items-center justify-center transition-all cursor-pointer shadow-xs"
             >
-              <span className="material-symbols-outlined text-[20px]">person_add</span>
+              <span className="material-symbols-outlined text-[19px]">person_add</span>
             </motion.button>
-          </div>
 
-        {/* Search - Full Circular Pill Shape */}
-        <div className="px-5 pb-2">
-          <div className="relative w-full">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant pointer-events-none">search</span>
-            <input
-              type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search conversations..."
-              className="w-full pl-11 pr-5 py-2.5 rounded-full bg-surface-container-low/80 focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 text-on-surface font-body-sm transition-all outline-none placeholder:text-on-surface-variant/60"
-            />
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={() => {
+                setShowCreateGroup(true);
+                Storage.fetchRemoteUsers().then(users => setAllUsers(users.filter(u => u.handle.toLowerCase() !== currentUser.handle.toLowerCase())));
+              }}
+              title="Create Group"
+              className="w-9 h-9 rounded-full bg-tertiary/10 hover:bg-tertiary/20 text-tertiary flex items-center justify-center transition-all cursor-pointer shadow-xs"
+            >
+              <span className="material-symbols-outlined text-[19px]">group_add</span>
+            </motion.button>
           </div>
         </div>
 
-        {/* 3 Tabs: Chats, Groups & Friend Requests - Full Circular Pill Shape Container */}
-        <div className="px-5 pb-3">
-          <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-full">
+        {/* Search - Modern Pill Input */}
+        <div className="px-4 pb-2">
+          <div className="relative w-full">
+            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[17px] text-on-surface-variant/70 pointer-events-none">search</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search conversations..."
+              className="w-full pl-10 pr-9 py-2 rounded-2xl bg-surface-container/60 focus:bg-surface-container-low focus:ring-2 focus:ring-primary/20 border border-outline-variant/15 text-on-surface font-body-sm transition-all outline-none placeholder:text-on-surface-variant/60 text-[13px]"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/70 hover:text-on-surface cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[15px]">cancel</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 3 Tabs: Chats, Groups & Requests - Sliding Spring Pill Indicator */}
+        <div className="px-4 pb-2.5">
+          <div className="flex items-center p-1 bg-surface-container/70 rounded-2xl border border-outline-variant/10 relative">
             <button
               onClick={() => setActiveTab("chats")}
-              className={`flex-1 py-2 px-2.5 rounded-full font-label-md text-[12px] transition-all flex items-center justify-center gap-1 cursor-pointer ${
+              className={`relative flex-1 py-1.5 px-2 rounded-xl font-label-md text-[12px] transition-all flex items-center justify-center gap-1 cursor-pointer z-10 ${
                 activeTab === "chats"
-                  ? "bg-surface-container-lowest text-primary font-bold shadow-xs"
-                  : "text-on-surface-variant hover:text-on-surface"
+                  ? "text-primary font-bold"
+                  : "text-on-surface-variant hover:text-on-surface font-medium"
               }`}
             >
+              {activeTab === "chats" && (
+                <motion.div
+                  layoutId="activeChatTabIndicator"
+                  className="absolute inset-0 bg-surface-container-lowest rounded-xl shadow-xs border border-outline-variant/15 -z-10"
+                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                />
+              )}
               <span>Chats</span>
-              <span className="px-1.5 py-0.5 rounded-full font-caption text-[10px] bg-primary/10 text-primary font-bold">
+              <span className="px-1.5 py-0.2 rounded-full font-caption text-[10px] bg-primary/10 text-primary font-bold">
                 {conversations.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab("groups")}
-              className={`flex-1 py-2 px-2.5 rounded-full font-label-md text-[12px] transition-all flex items-center justify-center gap-1 cursor-pointer ${
+              className={`relative flex-1 py-1.5 px-2 rounded-xl font-label-md text-[12px] transition-all flex items-center justify-center gap-1 cursor-pointer z-10 ${
                 activeTab === "groups"
-                  ? "bg-surface-container-lowest text-tertiary font-bold shadow-xs"
-                  : "text-on-surface-variant hover:text-on-surface"
+                  ? "text-tertiary font-bold"
+                  : "text-on-surface-variant hover:text-on-surface font-medium"
               }`}
             >
+              {activeTab === "groups" && (
+                <motion.div
+                  layoutId="activeChatTabIndicator"
+                  className="absolute inset-0 bg-surface-container-lowest rounded-xl shadow-xs border border-outline-variant/15 -z-10"
+                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                />
+              )}
               <span>Groups</span>
-              <span className="px-1.5 py-0.5 rounded-full font-caption text-[10px] bg-tertiary/10 text-tertiary font-bold">
+              <span className="px-1.5 py-0.2 rounded-full font-caption text-[10px] bg-tertiary/10 text-tertiary font-bold">
                 {groups.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab("requests")}
-              className={`flex-1 py-2 px-2.5 rounded-full font-label-md text-[12px] transition-all flex items-center justify-center gap-1 cursor-pointer ${
+              className={`relative flex-1 py-1.5 px-2 rounded-xl font-label-md text-[12px] transition-all flex items-center justify-center gap-1 cursor-pointer z-10 ${
                 activeTab === "requests"
-                  ? "bg-surface-container-lowest text-secondary font-bold shadow-xs"
-                  : "text-on-surface-variant hover:text-on-surface"
+                  ? "text-secondary font-bold"
+                  : "text-on-surface-variant hover:text-on-surface font-medium"
               }`}
             >
+              {activeTab === "requests" && (
+                <motion.div
+                  layoutId="activeChatTabIndicator"
+                  className="absolute inset-0 bg-surface-container-lowest rounded-xl shadow-xs border border-outline-variant/15 -z-10"
+                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                />
+              )}
               <span>Requests</span>
               {friendRequests.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full font-caption text-[10px] bg-secondary text-white font-bold animate-pulse">
+                <span className="px-1.5 py-0.2 rounded-full font-caption text-[10px] bg-secondary text-white font-bold animate-pulse">
                   {friendRequests.length}
                 </span>
               )}
@@ -990,42 +1056,45 @@ export default function ChatPage() {
         </div>
 
         {/* Flamingoos Quick Tray */}
-        <div className="px-5 pb-3">
+        <div className="px-4 pb-2.5">
           <div 
             onClick={() => router.push("/flamingoos")}
-            className="p-3 rounded-2xl bg-gradient-to-r from-surface-container-low to-surface-container/60 flex items-center gap-3 shadow-xs cursor-pointer hover:bg-surface-container transition-all"
+            className="p-2.5 rounded-2xl bg-gradient-to-r from-surface-container/50 via-surface-container-low/80 to-surface-container/50 border border-outline-variant/15 flex items-center gap-3 shadow-xs cursor-pointer hover:bg-surface-container transition-all group"
           >
             <div className="relative flex-shrink-0">
-              <div className="w-10 h-10 rounded-2xl bg-surface-container-lowest flex items-center justify-center shadow-xs">
-                <span className="material-symbols-outlined text-[20px] text-secondary">auto_stories</span>
+              <div className="w-10 h-10 rounded-full p-[2px] bg-gradient-to-tr from-primary via-secondary to-tertiary shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="w-full h-full rounded-full bg-surface flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[19px] text-secondary">auto_stories</span>
+                </div>
               </div>
-              <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-primary text-white flex items-center justify-center shadow-xs text-[10px] font-bold">+</span>
+              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-primary text-white flex items-center justify-center shadow-xs text-[11px] font-bold leading-none ring-2 ring-surface">+</span>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1">
-                <span className="font-label-md font-semibold text-on-surface">Flamingoos</span>
-                <span className="font-caption text-[9px] text-secondary bg-secondary/10 px-1.5 py-0.5 rounded-full font-bold uppercase">Live</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-title-md font-bold text-on-surface text-[13px]">Flamingoos</span>
+                <span className="font-caption text-[9px] text-secondary bg-secondary/15 px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider">Live</span>
               </div>
-              <p className="font-body-sm text-on-surface-variant text-[11px] truncate">Post or view ephemeral flamingoos...</p>
+              <p className="font-caption text-on-surface-variant text-[11px] truncate mt-0.5">Post or view ephemeral updates</p>
             </div>
+            <span className="material-symbols-outlined text-[18px] text-on-surface-variant/40 group-hover:text-on-surface transition-colors mr-1">chevron_right</span>
           </div>
         </div>
 
         {/* TAB 1: CHATS LIST */}
         {activeTab === "chats" && (
-          <div className="flex-1 px-4 overflow-y-auto flex flex-col pb-4 gap-1.5">
+          <div className="flex-1 px-3 overflow-y-auto flex flex-col pb-28 md:pb-6 gap-1 scrollbar-none">
             {filteredConversations.length === 0 ? (
-              <div className="flex flex-col items-center text-center mt-6 px-3">
-                <div className="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-on-surface-variant/40 mb-3">
-                  <span className="material-symbols-outlined text-[32px]">chat</span>
+              <div className="flex flex-col items-center text-center mt-8 px-4 py-8 rounded-3xl bg-surface-container-low/40 border border-outline-variant/10 mx-1">
+                <div className="w-14 h-14 rounded-2xl bg-surface-container flex items-center justify-center text-on-surface-variant/40 mb-3">
+                  <span className="material-symbols-outlined text-[28px]">chat</span>
                 </div>
-                <h3 className="font-title-md font-semibold text-on-surface">No Conversations Yet</h3>
-                <p className="font-caption text-on-surface-variant mt-1 leading-relaxed">
-                  Click the &apos;+&apos; icon or find users to start a conversation.
+                <h3 className="font-title-md font-bold text-on-surface text-[14px]">No Conversations Yet</h3>
+                <p className="font-caption text-on-surface-variant mt-1 text-[11px] leading-relaxed max-w-[200px]">
+                  Connect with friends across Flyingo to start chatting.
                 </p>
                 <button
                   onClick={() => setShowFindFriends(true)}
-                  className="mt-3 px-4 py-2 rounded-2xl bg-primary text-white font-label-md text-[12px] shadow-xs cursor-pointer"
+                  className="mt-4 px-4 py-2 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-label-md font-semibold text-[11px] shadow-sm cursor-pointer hover:scale-105 active:scale-95 transition-all"
                 >
                   Find Users
                 </button>
@@ -1033,37 +1102,39 @@ export default function ChatPage() {
             ) : (
               filteredConversations.map(conv => {
                 const isActive = conv.id === activeConvId;
+                const isOnline = Realtime.isOnline(conv.handle);
                 return (
                   <motion.div
                     key={conv.id}
-                    whileHover={{ scale: 1.10 }}
-                    whileTap={{ scale: 0.99 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => {
                       setActiveConvId(conv.id);
                       setMobileView("chat");
                     }}
-                    className={`flex items-center gap-3.5 p-3 rounded-2xl cursor-pointer transition-all ${
+                    className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all ${
                       isActive
-                        ? "bg-primary-container/20 text-on-primary-container shadow-sm border border-primary/20"
-                        : "hover:bg-surface-container-low"
+                        ? "bg-primary/10 border border-primary/25 shadow-xs"
+                        : "hover:bg-surface-container/60 border border-transparent"
                     }`}
                   >
                     <div className="relative flex-shrink-0">
-                      <img
-                        src={conv.avatar || "/default-avatar.jpg"}
-                        alt={conv.name}
-                        className="w-11 h-11 rounded-2xl object-cover"
-                      />
+                      <div className={`w-12 h-12 rounded-full p-[2px] ${isActive ? "bg-gradient-to-tr from-primary to-secondary" : "bg-surface-container"} shadow-xs`}>
+                        <img
+                          src={conv.avatar || "/default-avatar.jpg"}
+                          alt={conv.name}
+                          className="w-full h-full rounded-full object-cover bg-surface"
+                        />
+                      </div>
                       {!conv.isGroup && (
-                        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-surface-container-lowest ${Realtime.isOnline(conv.handle) ? "bg-green-500" : "bg-gray-400"}`} />
+                        <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ring-2 ring-surface shadow-xs ${isOnline ? "bg-emerald-500" : "bg-slate-400"}`} />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="font-title-md font-semibold text-on-surface truncate text-[14px]">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-title-md font-bold text-on-surface truncate text-[14px]">
                           {conv.name}
                         </span>
-                        <span className="font-caption text-on-surface-variant text-[11px]">{conv.time}</span>
+                        <span className="font-caption text-on-surface-variant/70 text-[10.5px] flex-shrink-0">{conv.time}</span>
                       </div>
                       <p className="font-body-sm text-on-surface-variant truncate text-[12px] mt-0.5">
                         {conv.lastMessage}
@@ -1149,34 +1220,51 @@ export default function ChatPage() {
 
         {/* TAB 3: FRIEND REQUESTS */}
         {activeTab === "requests" && (
-          <div className="flex-1 px-4 overflow-y-auto flex flex-col pb-4 gap-2">
-            <div className="flex items-center justify-between py-1">
-              <span className="font-label-md text-on-surface font-semibold text-[13px]">
-                Incoming Requests ({friendRequests.length})
-              </span>
+          <div className="flex-1 px-3.5 overflow-y-auto flex flex-col pb-4 gap-2.5">
+            <div className="flex items-center justify-between py-1.5 px-1">
+              <div className="flex items-center gap-2">
+                <span className="font-title-md text-on-surface font-bold text-[13px]">
+                  Friend Requests
+                </span>
+                {friendRequests.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-primary/15 text-primary font-bold text-[10px]">
+                    {friendRequests.length}
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => setShowFindFriends(true)}
-                className="text-primary hover:underline font-caption text-[11px] cursor-pointer"
+                className="text-primary hover:text-primary/80 font-caption font-semibold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
               >
-                Send Request +
+                <span className="material-symbols-outlined text-[14px]">person_search</span>
+                <span>Discover</span>
               </button>
             </div>
 
             {friendRequests.length === 0 ? (
-              <div className="flex flex-col items-center text-center mt-10 px-3">
-                <div className="w-14 h-14 rounded-2xl bg-surface-container flex items-center justify-center text-on-surface-variant/40 mb-3">
-                  <span className="material-symbols-outlined text-[28px]">group_add</span>
+              <div className="flex flex-col items-center justify-center text-center mt-12 px-4 py-8 rounded-3xl bg-surface-container-low/50 border border-outline-variant/10">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary/15 via-secondary/15 to-transparent flex items-center justify-center text-primary mb-3">
+                  <span className="material-symbols-outlined text-[28px]">mark_email_read</span>
                 </div>
-                <p className="font-title-md font-semibold text-on-surface">No Pending Friend Requests</p>
-                <p className="font-caption text-on-surface-variant mt-1 text-[12px]">
-                  When someone sends you a friend request, it will appear here.
+                <p className="font-title-md font-bold text-on-surface text-[14px]">No Pending Requests</p>
+                <p className="font-caption text-on-surface-variant mt-1 text-[11px] max-w-[200px] leading-relaxed">
+                  Search people across Flyingo and connect with your friends.
                 </p>
+                <button
+                  onClick={() => setShowFindFriends(true)}
+                  className="mt-4 px-4 py-2 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-label-md font-semibold text-[11px] shadow-sm flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all"
+                >
+                  <span className="material-symbols-outlined text-[15px]">person_add</span>
+                  <span>Find Friends</span>
+                </button>
               </div>
             ) : (
               friendRequests.map(req => (
-                <div
+                <motion.div
                   key={req.id}
-                  className="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/10 flex flex-col gap-2.5 shadow-xs"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/15 flex flex-col gap-3 shadow-xs hover:border-outline-variant/30 transition-all"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div 
@@ -1184,36 +1272,46 @@ export default function ChatPage() {
                         const target = Storage.getUserByHandle(req.fromHandle);
                         if (target) openUserProfile(target);
                       }}
-                      className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-3 min-w-0 cursor-pointer group"
                     >
-                      <img
-                        src={req.fromAvatar || "/default-avatar.jpg"}
-                        alt={req.fromName}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
+                      <div className="w-11 h-11 rounded-full p-[2px] bg-gradient-to-tr from-primary via-secondary to-tertiary flex-shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                        <img
+                          src={req.fromAvatar || "/default-avatar.jpg"}
+                          alt={req.fromName}
+                          className="w-full h-full rounded-full object-cover bg-surface"
+                        />
+                      </div>
                       <div className="min-w-0">
-                        <p className="font-title-md text-[13px] font-bold text-on-surface truncate">{req.fromName}</p>
-                        <p className="font-caption text-[11px] text-primary font-mono truncate">@{req.fromHandle}</p>
+                        <p className="font-title-md text-[13px] font-bold text-on-surface truncate group-hover:text-primary transition-colors">
+                          {req.fromName}
+                        </p>
+                        <p className="font-caption text-[10px] text-on-surface-variant font-mono truncate">
+                          @{req.fromHandle}
+                        </p>
                       </div>
                     </div>
-                    <span className="font-caption text-on-surface-variant text-[10px]">Just now</span>
+                    <span className="font-caption text-[10px] text-on-surface-variant/70 px-2 py-0.5 rounded-full bg-surface-container flex-shrink-0">
+                      Request
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 mt-0.5">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => handleDeclineRequest(req)}
-                      className="py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-caption text-[11px] cursor-pointer"
+                      className="py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md font-semibold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-colors"
                     >
-                      Decline
+                      <span className="material-symbols-outlined text-[14px]">close</span>
+                      <span>Decline</span>
                     </button>
                     <button
                       onClick={() => handleAcceptRequest(req)}
-                      className="py-1.5 rounded-xl bg-primary text-white font-caption font-bold text-[11px] shadow-xs cursor-pointer"
+                      className="py-2 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-label-md font-bold text-[11px] shadow-sm flex items-center justify-center gap-1 cursor-pointer hover:scale-[1.02] active:scale-98 transition-all"
                     >
-                      Accept
+                      <span className="material-symbols-outlined text-[15px]">check</span>
+                      <span>Accept</span>
                     </button>
                   </div>
-                </div>
+                </motion.div>
               ))
             )}
           </div>
@@ -1296,7 +1394,7 @@ export default function ChatPage() {
                           />
                         );
                       }
-                      return <VerifiedBadge size={22} />;
+                      return null;
                     })()}
                   </div>
                   <p className="font-caption text-primary font-mono text-[11px]">
@@ -1429,7 +1527,8 @@ export default function ChatPage() {
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         drag="x"
-                        dragConstraints={{ left: -60, right: 60 }}
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragSnapToOrigin={true}
                         dragElastic={0.25}
                         onDragEnd={(_, info) => {
                           if (info.offset.x < -30 || info.offset.x > 30) {
@@ -2203,21 +2302,33 @@ export default function ChatPage() {
 
               {/* Action Buttons: Friend Request & Message */}
               <div className="grid grid-cols-2 gap-3 mt-2">
-                <button
-                  type="button"
-                  onClick={() => handleSendFriendRequest(viewingProfileUser.handle)}
-                  className="py-3 rounded-2xl bg-secondary/10 hover:bg-secondary/20 text-secondary font-title-md font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[18px]">person_add</span>
-                  Friend Request
-                </button>
+                {friendsList.includes(viewingProfileUser.handle.toLowerCase()) ? (
+                  <div className="py-3 rounded-2xl bg-primary/10 text-primary font-title-md font-semibold flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
+                    <span>Friends</span>
+                  </div>
+                ) : sentRequests.some(r => r.toHandle.toLowerCase() === viewingProfileUser.handle.toLowerCase() && r.status === "pending") ? (
+                  <div className="py-3 rounded-2xl bg-surface-container text-on-surface-variant font-title-md font-semibold flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px]">hourglass_empty</span>
+                    <span>Requested</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSendFriendRequest(viewingProfileUser.handle)}
+                    className="py-3 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white font-title-md font-semibold flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-98 transition-all shadow-xs"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">person_add</span>
+                    <span>Add Friend</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => startConversation(viewingProfileUser)}
-                  className="py-3 rounded-2xl bg-primary hover:bg-primary-container text-white font-title-md font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                  className="py-3 rounded-2xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-title-md font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                 >
                   <span className="material-symbols-outlined text-[18px]">chat</span>
-                  Message
+                  <span>Message</span>
                 </button>
               </div>
             </motion.div>
@@ -2395,83 +2506,258 @@ export default function ChatPage() {
       </AnimatePresence>
 
       {/* ── FIND FRIENDS MODAL ── */}
-
       <AnimatePresence>
         {showFindFriends && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/65 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4"
             onClick={e => { if (e.target === e.currentTarget) setShowFindFriends(false); }}
           >
             <motion.div
-              initial={{ scale: 0.92, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 20 }}
-              className="w-full max-w-md bg-surface-container-lowest rounded-3xl p-6 shadow-2xl flex flex-col gap-4 overflow-hidden max-h-[85vh]"
+              initial={{ scale: 0.94, y: 24, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.94, y: 24, opacity: 0 }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              className="w-full max-w-lg bg-surface-container-lowest sm:rounded-[32px] rounded-t-[32px] shadow-2xl border border-outline-variant/15 flex flex-col max-h-[92vh] sm:max-h-[85vh] overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-surface-container pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary text-[22px]">person_search</span>
-                  <h3 className="font-headline-sm font-bold text-on-surface">Find & Connect</h3>
+              {/* Drag handle for mobile */}
+              <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-outline-variant/60" />
+              </div>
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-surface-container">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary/15 to-secondary/15 flex items-center justify-center text-primary shadow-xs">
+                    <span className="material-symbols-outlined text-[22px]">person_search</span>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-title-lg font-bold text-on-surface">Find & Connect</h3>
+                      <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold text-[10px]">
+                        {allUsers.length}
+                      </span>
+                    </div>
+                    <p className="font-caption text-on-surface-variant text-[11px]">Discover people and connect on Flyingo</p>
+                  </div>
                 </div>
-                <button onClick={() => setShowFindFriends(false)} className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant cursor-pointer">
+                <button
+                  onClick={() => setShowFindFriends(false)}
+                  className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant cursor-pointer transition-colors"
+                >
                   <span className="material-symbols-outlined text-[18px]">close</span>
                 </button>
               </div>
 
-              <div className="relative w-full">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
-                <input
-                  type="text"
-                  value={friendSearch}
-                  onChange={e => setFriendSearch(e.target.value)}
-                  placeholder="Search by name or @handle..."
-                  autoFocus
-                  className="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-surface-container-low text-on-surface font-body-sm outline-none focus:ring-2 focus:ring-primary/20 text-[13px]"
-                />
+              {/* Tabs: Discover vs Sent Requests */}
+              <div className="flex items-center px-6 pt-3 pb-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFindFriendsTab("discover")}
+                  className={`flex-1 py-2 px-3 rounded-xl font-label-md text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    findFriendsTab === "discover"
+                      ? "bg-primary text-white shadow-xs"
+                      : "bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">explore</span>
+                  <span>Discover People</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFindFriendsTab("sent")}
+                  className={`flex-1 py-2 px-3 rounded-xl font-label-md text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    findFriendsTab === "sent"
+                      ? "bg-primary text-white shadow-xs"
+                      : "bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">send</span>
+                  <span>Sent Requests</span>
+                  {sentRequests.filter(r => r.status === "pending").length > 0 && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      findFriendsTab === "sent" ? "bg-white/20 text-white" : "bg-primary text-white"
+                    }`}>
+                      {sentRequests.filter(r => r.status === "pending").length}
+                    </span>
+                  )}
+                </button>
               </div>
 
-              <div className="flex flex-col gap-2 overflow-y-auto max-h-72 pr-1">
-                {filteredAllUsers.length === 0 ? (
-                  <p className="text-center font-caption text-on-surface-variant py-8">No registered users found</p>
-                ) : (
-                  filteredAllUsers.map(u => (
-                    <div
-                      key={u.id || u.handle}
-                      className="p-3 rounded-2xl bg-surface-container-low hover:bg-surface-container flex items-center justify-between gap-3 transition-colors"
-                    >
-                      <div 
-                        onClick={() => openUserProfile(u)}
-                        className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80"
-                      >
-                        <img
-                          src={u.avatar || "/default-avatar.jpg"}
-                          alt={u.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-title-md text-[13px] font-bold text-on-surface truncate">{u.name}</p>
-                          <p className="font-caption text-[11px] text-primary font-mono truncate">@{u.handle}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
+              {/* Content Body */}
+              <div className="p-6 pt-3 flex flex-col gap-3 overflow-hidden flex-1">
+                {findFriendsTab === "discover" ? (
+                  <>
+                    {/* Search Bar */}
+                    <div className="relative w-full">
+                      <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+                      <input
+                        type="text"
+                        value={friendSearch}
+                        onChange={e => setFriendSearch(e.target.value)}
+                        placeholder="Search by name or @handle..."
+                        autoFocus
+                        className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-surface-container-low text-on-surface font-body-sm outline-none border border-outline-variant/20 focus:border-primary/50 focus:ring-2 focus:ring-primary/15 text-[13px] transition-all"
+                      />
+                      {friendSearch && (
                         <button
-                          onClick={() => handleSendFriendRequest(u.handle)}
-                          className="px-2.5 py-1.5 rounded-xl bg-secondary/10 hover:bg-secondary/20 text-secondary font-caption text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1"
-                          title="Send Friend Request"
+                          type="button"
+                          onClick={() => setFriendSearch("")}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[14px]">person_add</span>
-                          Add
+                          <span className="material-symbols-outlined text-[16px]">cancel</span>
                         </button>
-                        <button
-                          onClick={() => startConversation(u)}
-                          className="px-2.5 py-1.5 rounded-xl bg-primary text-white font-caption text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">chat</span>
-                          Chat
-                        </button>
-                      </div>
+                      )}
                     </div>
-                  ))
+
+                    {/* Users List */}
+                    <div className="flex flex-col gap-2 overflow-y-auto max-h-80 sm:max-h-96 pr-1 scrollbar-none">
+                      {filteredAllUsers.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <div className="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center text-on-surface-variant/40 mb-2">
+                            <span className="material-symbols-outlined text-[24px]">search_off</span>
+                          </div>
+                          <p className="font-title-md font-bold text-on-surface text-[13px]">No users found</p>
+                          <p className="font-caption text-on-surface-variant text-[11px] mt-0.5">Try searching with another name or handle</p>
+                        </div>
+                      ) : (
+                        filteredAllUsers.map(u => {
+                          const isFriend = friendsList.includes(u.handle.toLowerCase());
+                          const isPendingSent = sentRequests.some(
+                            r => r.toHandle.toLowerCase() === u.handle.toLowerCase() && r.status === "pending"
+                          );
+
+                          return (
+                            <div
+                              key={u.id || u.handle}
+                              className="p-3 rounded-2xl bg-surface-container-low/80 hover:bg-surface-container border border-outline-variant/10 flex items-center justify-between gap-3 transition-all"
+                            >
+                              <div
+                                onClick={() => openUserProfile(u)}
+                                className="flex items-center gap-3 min-w-0 cursor-pointer group flex-1"
+                              >
+                                <div className="relative flex-shrink-0">
+                                  <div className="w-11 h-11 rounded-full p-[2px] bg-gradient-to-tr from-primary via-secondary to-tertiary shadow-xs group-hover:scale-105 transition-transform">
+                                    <img
+                                      src={u.avatar || "/default-avatar.jpg"}
+                                      alt={u.name}
+                                      className="w-full h-full rounded-full object-cover bg-surface"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1">
+                                    <p className="font-title-md text-[13px] font-bold text-on-surface truncate group-hover:text-primary transition-colors">
+                                      {u.name}
+                                    </p>
+                                    {u.verifiedBadge?.enabled && (
+                                      <VerifiedBadge
+                                        icon={u.verifiedBadge.icon || "verified"}
+                                        color={u.verifiedBadge.color || "#00daf3"}
+                                        size={14}
+                                      />
+                                    )}
+                                  </div>
+                                  <p className="font-caption text-[11px] text-on-surface-variant font-mono truncate">
+                                    @{u.handle}
+                                  </p>
+                                  {u.bio && (
+                                    <p className="font-caption text-[10px] text-on-surface-variant/70 truncate max-w-[180px] mt-0.5">
+                                      {u.bio}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {isFriend ? (
+                                  <span className="px-2.5 py-1.5 rounded-xl bg-primary/10 text-primary font-caption text-[11px] font-bold flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[14px]">how_to_reg</span>
+                                    <span>Friends</span>
+                                  </span>
+                                ) : isPendingSent ? (
+                                  <span className="px-2.5 py-1.5 rounded-xl bg-surface-container text-on-surface-variant font-caption text-[11px] font-medium flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[14px]">hourglass_empty</span>
+                                    <span>Requested</span>
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleSendFriendRequest(u.handle)}
+                                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-caption text-[11px] font-bold shadow-xs hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center gap-1"
+                                    title="Send Friend Request"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">person_add</span>
+                                    <span>Add</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => startConversation(u)}
+                                  className="px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-caption text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                  title="Send Message"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">chat</span>
+                                  <span>Chat</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  /* Sent Requests Tab */
+                  <div className="flex flex-col gap-2 overflow-y-auto max-h-80 sm:max-h-96 pr-1 scrollbar-none">
+                    {sentRequests.filter(r => r.status === "pending").length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center text-on-surface-variant/40 mb-2">
+                          <span className="material-symbols-outlined text-[24px]">outgoing_mail</span>
+                        </div>
+                        <p className="font-title-md font-bold text-on-surface text-[13px]">No Active Sent Requests</p>
+                        <p className="font-caption text-on-surface-variant text-[11px] mt-0.5">
+                          When you add friends, requests waiting for approval appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      sentRequests
+                        .filter(r => r.status === "pending")
+                        .map(req => (
+                          <div
+                            key={req.id}
+                            className="p-3 rounded-2xl bg-surface-container-low border border-outline-variant/10 flex items-center justify-between gap-3"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-full p-[1.5px] bg-gradient-to-tr from-primary to-secondary flex-shrink-0">
+                                <img
+                                  src={req.fromAvatar || "/default-avatar.jpg"}
+                                  alt={req.toHandle}
+                                  className="w-full h-full rounded-full object-cover bg-surface"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-title-md text-[13px] font-bold text-on-surface truncate">
+                                  @{req.toHandle}
+                                </p>
+                                <span className="font-caption text-[10px] text-on-surface-variant flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[12px] text-amber-500">schedule</span>
+                                  <span>Pending approval</span>
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => handleCancelSentRequest(req.id)}
+                              className="px-3 py-1.5 rounded-xl bg-surface-container hover:bg-error/10 hover:text-error text-on-surface-variant font-caption text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">close</span>
+                              <span>Cancel</span>
+                            </button>
+                          </div>
+                        ))
+                    )}
+                  </div>
                 )}
               </div>
             </motion.div>
@@ -2479,52 +2765,80 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* ── CREATE GROUP MODAL ── */}
+      {/* ── CREATE GROUP MODAL (INSTAGRAM / TELEGRAM STYLE REVAMP) ── */}
       <AnimatePresence>
         {showCreateGroup && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/65 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4"
             onClick={e => { if (e.target === e.currentTarget) setShowCreateGroup(false); }}
           >
             <motion.div
-              initial={{ scale: 0.92, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 20 }}
-              className="w-full max-w-md bg-surface-container-lowest rounded-3xl p-6 shadow-2xl flex flex-col gap-4 overflow-hidden max-h-[90vh]"
+              initial={{ scale: 0.94, y: 24, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.94, y: 24, opacity: 0 }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              className="w-full max-w-lg bg-surface-container-lowest sm:rounded-[32px] rounded-t-[32px] shadow-2xl border border-outline-variant/15 flex flex-col max-h-[94vh] sm:max-h-[88vh] overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-surface-container pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-tertiary text-[24px]">group_add</span>
-                  <h3 className="font-headline-sm font-bold text-on-surface">Create New Group</h3>
+              {/* Drag handle for mobile */}
+              <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="w-10 h-1 rounded-full bg-outline-variant/60" />
+              </div>
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-surface-container">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-tertiary/20 to-primary/20 flex items-center justify-center text-tertiary shadow-xs">
+                    <span className="material-symbols-outlined text-[24px]">groups</span>
+                  </div>
+                  <div>
+                    <h3 className="font-title-lg font-bold text-on-surface">Create New Group</h3>
+                    <p className="font-caption text-on-surface-variant text-[11px]">Chat and share media with friends together</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowCreateGroup(false)}
-                  className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant cursor-pointer"
+                  className="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant cursor-pointer transition-colors"
                 >
                   <span className="material-symbols-outlined text-[18px]">close</span>
                 </button>
               </div>
 
-              <div className="flex flex-col gap-3">
-                {/* Group Photo / DP Upload */}
-                <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-surface-container-low border border-outline-variant/10">
-                  <div className="relative">
-                    <img
-                      src={newGroupAvatar || "/default-avatar.jpg"}
-                      alt="group avatar"
-                      className="w-14 h-14 rounded-full object-cover border-2 border-tertiary shadow-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => groupAvatarInputRef.current?.click()}
-                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-tertiary text-white flex items-center justify-center shadow-md cursor-pointer hover:scale-110 transition-transform"
-                      title="Upload Group Photo"
-                    >
+              {/* Scrollable Form Body */}
+              <div className="p-6 pt-4 flex flex-col gap-4 overflow-y-auto scrollbar-none flex-1">
+                {/* Group Photo + Name Row */}
+                <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/15">
+                  <div className="relative group cursor-pointer flex-shrink-0" onClick={() => groupAvatarInputRef.current?.click()}>
+                    <div className="w-16 h-16 rounded-full p-[2.5px] bg-gradient-to-tr from-tertiary via-secondary to-primary shadow-md">
+                      <img
+                        src={newGroupAvatar || "/default-avatar.jpg"}
+                        alt="group avatar"
+                        className="w-full h-full rounded-full object-cover bg-surface"
+                      />
+                    </div>
+                    <span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-tertiary text-white flex items-center justify-center shadow-md ring-2 ring-surface group-hover:scale-110 transition-transform">
                       <span className="material-symbols-outlined text-[14px]">photo_camera</span>
-                    </button>
+                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-title-md font-bold text-on-surface text-[13px]">Group Photo</p>
-                    <p className="font-caption text-on-surface-variant text-[11px]">Upload custom group picture</p>
+                    <input
+                      type="text"
+                      maxLength={40}
+                      value={newGroupName}
+                      onChange={e => setNewGroupName(e.target.value)}
+                      placeholder="Group Name *"
+                      className="w-full px-3 py-2 rounded-xl bg-surface-container text-on-surface font-title-md font-bold text-[14px] outline-none border border-outline-variant/15 focus:border-tertiary focus:ring-2 focus:ring-tertiary/15 transition-all"
+                    />
+                    <div className="flex items-center justify-between mt-1 px-1">
+                      <button
+                        type="button"
+                        onClick={() => groupAvatarInputRef.current?.click()}
+                        className="text-tertiary hover:underline font-caption text-[11px] font-semibold cursor-pointer"
+                      >
+                        Change Photo
+                      </button>
+                      <span className="text-[10px] text-on-surface-variant font-mono">{newGroupName.length}/40</span>
+                    </div>
                   </div>
                   <input
                     ref={groupAvatarInputRef}
@@ -2533,100 +2847,136 @@ export default function ChatPage() {
                     onChange={handleGroupAvatarUpload}
                     className="hidden"
                   />
-                  <button
-                    type="button"
-                    onClick={() => groupAvatarInputRef.current?.click()}
-                    className="px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-tertiary font-caption text-[11px] font-bold cursor-pointer"
-                  >
-                    Choose Photo
-                  </button>
                 </div>
 
+                {/* Description input */}
                 <div>
-                  <label className="block font-caption text-on-surface-variant text-[11px] font-bold uppercase mb-1">
-                    Group Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={newGroupName}
-                    onChange={e => setNewGroupName(e.target.value)}
-                    placeholder="e.g. Friends Squad, Crypto Gang, Study Team..."
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-surface-container-low text-on-surface font-body-sm outline-none focus:ring-2 focus:ring-tertiary/30 text-[13px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-caption text-on-surface-variant text-[11px] font-bold uppercase mb-1">
+                  <label className="block font-caption text-on-surface-variant text-[11px] font-bold uppercase tracking-wider mb-1 px-1">
                     Description (Optional)
                   </label>
                   <input
                     type="text"
+                    maxLength={100}
                     value={newGroupDesc}
                     onChange={e => setNewGroupDesc(e.target.value)}
-                    placeholder="What is this group about?"
-                    className="w-full px-3.5 py-2 rounded-2xl bg-surface-container-low text-on-surface font-body-sm outline-none focus:ring-2 focus:ring-tertiary/30 text-[12px]"
+                    placeholder="What is this group about? (e.g. Study Squad, Weekend Gaming)"
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-surface-container-low text-on-surface font-body-sm outline-none border border-outline-variant/15 focus:border-tertiary focus:ring-2 focus:ring-tertiary/15 text-[13px] transition-all"
                   />
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="font-caption text-on-surface-variant text-[11px] font-bold uppercase">
-                      Select Members ({selectedGroupMembers.length})
+                {/* Member Selection Section */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between px-1">
+                    <label className="font-caption text-on-surface-variant text-[11px] font-bold uppercase tracking-wider">
+                      Select Members
                     </label>
-                    <span className="font-caption text-[11px] text-tertiary font-medium">You are admin</span>
+                    <span className="px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary font-caption text-[11px] font-bold">
+                      {selectedGroupMembers.length} Selected
+                    </span>
                   </div>
 
-                  <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto border border-outline-variant/10 rounded-2xl p-2 bg-surface-container-low/40">
-                    {allUsers.length === 0 ? (
-                      <p className="font-caption text-on-surface-variant text-center py-4 text-[11px]">
-                        No other users found to add.
-                      </p>
-                    ) : (
-                      allUsers.map(user => {
-                        const isSelected = selectedGroupMembers.includes(user.handle.toLowerCase());
+                  {/* Selected Members Chips */}
+                  {selectedGroupMembers.length > 0 && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
+                      {selectedGroupMembers.map(handle => {
+                        const u = allUsers.find(user => user.handle.toLowerCase() === handle.toLowerCase());
                         return (
                           <div
-                            key={user.id || user.handle}
-                            onClick={() => {
-                              const handle = user.handle.toLowerCase();
-                              setSelectedGroupMembers(prev =>
-                                isSelected ? prev.filter(h => h !== handle) : [...prev, handle]
-                              );
-                            }}
-                            className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all ${
-                              isSelected ? "bg-tertiary/15 text-tertiary font-bold" : "hover:bg-surface-container"
-                            }`}
+                            key={handle}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-tertiary/15 border border-tertiary/30 text-tertiary font-caption text-[11px] font-semibold flex-shrink-0"
                           >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <img
-                                src={user.avatar || "/default-avatar.jpg"}
-                                alt={user.name}
-                                className="w-8 h-8 rounded-full object-cover"
-                              />
-                              <div className="min-w-0">
-                                <p className="font-title-md text-[12px] truncate">{user.name || `@${user.handle}`}</p>
-                                <p className="font-caption text-[10px] text-on-surface-variant font-mono">@{user.handle}</p>
-                              </div>
-                            </div>
-                            <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                              isSelected ? "bg-tertiary border-tertiary text-white" : "border-outline-variant"
-                            }`}>
-                              {isSelected && <span className="material-symbols-outlined text-[14px]">check</span>}
-                            </div>
+                            <img
+                              src={u?.avatar || "/default-avatar.jpg"}
+                              alt={handle}
+                              className="w-4 h-4 rounded-full object-cover"
+                            />
+                            <span>{u?.name?.split(" ")[0] || `@${handle}`}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedGroupMembers(prev => prev.filter(h => h !== handle))}
+                              className="w-3.5 h-3.5 rounded-full hover:bg-tertiary/20 flex items-center justify-center cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-[12px]">close</span>
+                            </button>
                           </div>
                         );
-                      })
+                      })}
+                    </div>
+                  )}
+
+                  {/* Search members input */}
+                  <div className="relative w-full">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant">search</span>
+                    <input
+                      type="text"
+                      value={groupMemberSearch}
+                      onChange={e => setGroupMemberSearch(e.target.value)}
+                      placeholder="Search users to add..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-container-low text-on-surface font-body-sm outline-none border border-outline-variant/15 focus:border-tertiary text-[12px]"
+                    />
+                  </div>
+
+                  {/* Users list for group selection */}
+                  <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto border border-outline-variant/15 rounded-2xl p-2 bg-surface-container-low/50 scrollbar-none">
+                    {allUsers.length === 0 ? (
+                      <p className="font-caption text-on-surface-variant text-center py-6 text-[11px]">
+                        No other users found.
+                      </p>
+                    ) : (
+                      allUsers
+                        .filter(u =>
+                          !groupMemberSearch.trim() ||
+                          u.name.toLowerCase().includes(groupMemberSearch.toLowerCase()) ||
+                          u.handle.toLowerCase().includes(groupMemberSearch.toLowerCase())
+                        )
+                        .map(user => {
+                          const isSelected = selectedGroupMembers.includes(user.handle.toLowerCase());
+                          return (
+                            <div
+                              key={user.id || user.handle}
+                              onClick={() => {
+                                const handle = user.handle.toLowerCase();
+                                setSelectedGroupMembers(prev =>
+                                  isSelected ? prev.filter(h => h !== handle) : [...prev, handle]
+                                );
+                              }}
+                              className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
+                                isSelected
+                                  ? "bg-tertiary/15 border border-tertiary/30 text-tertiary font-semibold"
+                                  : "hover:bg-surface-container border border-transparent"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={user.avatar || "/default-avatar.jpg"}
+                                  alt={user.name}
+                                  className="w-8 h-8 rounded-full object-cover"
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-title-md text-[12px] font-bold truncate">{user.name || `@${user.handle}`}</p>
+                                  <p className="font-caption text-[10px] text-on-surface-variant font-mono">@{user.handle}</p>
+                                </div>
+                              </div>
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
+                                isSelected ? "bg-tertiary border-tertiary text-white shadow-xs" : "border-outline-variant/40 bg-surface-container"
+                              }`}>
+                                {isSelected && <span className="material-symbols-outlined text-[13px] font-bold">check</span>}
+                              </div>
+                            </div>
+                          );
+                        })
                     )}
                   </div>
                 </div>
 
+                {/* Submit button */}
                 <button
                   onClick={handleCreateGroup}
                   disabled={!newGroupName.trim()}
-                  className="mt-2 w-full py-3 rounded-2xl bg-tertiary text-white font-title-md font-bold text-[13px] flex items-center justify-center gap-2 shadow-md shadow-tertiary/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="mt-1 w-full py-3.5 rounded-2xl bg-gradient-to-r from-tertiary via-secondary to-primary text-white font-title-md font-bold text-[13px] flex items-center justify-center gap-2 shadow-lg shadow-tertiary/25 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed hover:scale-[1.01] active:scale-[0.99] transition-all"
                 >
                   <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  Create Group
+                  <span>Create Group ({selectedGroupMembers.length + 1} members)</span>
                 </button>
               </div>
             </motion.div>

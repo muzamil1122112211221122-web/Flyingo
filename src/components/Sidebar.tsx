@@ -119,9 +119,9 @@ export default function Sidebar({ hideBottomNav = false }: { hideBottomNav?: boo
             }`}
           >
             <img
-              src="/icons/nav-admin.png"
+              src="/admin-shield.png"
               alt="Admin"
-              className={`w-4.5 h-4.5 object-contain transition-all ${
+              className={`w-5 h-5 object-contain transition-all ${
                 isActive("/admin")
                   ? "brightness-0 invert"
                   : "opacity-80 hover:opacity-100 dark:brightness-0 dark:invert"
@@ -164,7 +164,7 @@ export default function Sidebar({ hideBottomNav = false }: { hideBottomNav?: boo
           {navBtn("/icons/nav-flamingoos.png", "/flamingoos", "Flamingoos", true, true, "badge")}
           {navBtn("/icons/nav-search.png", "/search", "Global Search", true, true)}
           {navBtn("/icons/nav-notes.png", "/notes", "Notes", true, true)}
-          {navBtn("/icons/nav-admin.png", "/admin", "Admin Gateway", true, true)}
+          {navBtn("/admin-shield.png", "/admin", "Admin Gateway", true, true)}
           {navBtn("settings", "/settings", "Settings", true)}
         </nav>
       )}

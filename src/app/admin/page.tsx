@@ -97,7 +97,7 @@ export default function AdminPage() {
     setAdminPin("");
   };
 
-  const handleGrantBadge = (enable: boolean) => {
+  const handleGrantBadge = async (enable: boolean) => {
     if (!targetHandle.trim()) {
       setErrorMsg("Please enter a handle");
       return;
@@ -109,10 +109,11 @@ export default function AdminPage() {
       icon: selectedIcon,
       label: badgeLabel.trim() || undefined,
     };
-    Storage.setUserBadge(clean, badge);
+    await Storage.setUserBadge(clean, badge);
     setBadgeSuccessToast(enable ? `✓ Verified Badge granted to @${clean}!` : `✓ Badge removed from @${clean}`);
     setTimeout(() => setBadgeSuccessToast(""), 3000);
-    Storage.fetchRemoteUsers().then(users => setRegisteredUsers(users));
+    const users = await Storage.fetchRemoteUsers();
+    setRegisteredUsers(users);
   };
 
   const handleSetFriendsCount = () => {
@@ -170,8 +171,8 @@ export default function AdminPage() {
               className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-surface-container-lowest shadow-2xl border border-outline-variant/15 text-center relative overflow-hidden"
             >
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary via-secondary to-tertiary" />
-              <div className="w-14 h-14 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center mx-auto mb-3 shadow-xs">
-                <span className="material-symbols-outlined text-[30px]">admin_panel_settings</span>
+              <div className="w-14 h-14 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto mb-3 shadow-xs border border-secondary/20">
+                <img src="/admin-shield.png" alt="Admin Shield" className="w-8 h-8 object-contain" />
               </div>
               <h2 className="font-headline-sm font-bold text-on-surface mb-1">Admin Central Gateway</h2>
               <p className="font-body-sm text-on-surface-variant mb-3">Enter 3-step master credentials to authorize access</p>
@@ -432,6 +433,22 @@ export default function AdminPage() {
                       Grant Circular Badge
                     </motion.button>
                   </div>
+
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={async () => {
+                      await Storage.resetAllBadges();
+                      setBadgeSuccessToast("✓ All verification badges reset across all accounts!");
+                      setTimeout(() => setBadgeSuccessToast(""), 3500);
+                      const users = await Storage.fetchRemoteUsers();
+                      setRegisteredUsers(users);
+                    }}
+                    className="w-full py-2.5 rounded-2xl border border-outline-variant/30 text-on-surface-variant hover:text-error hover:border-error/40 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                    Reset All User Badges (Clear All Ticks)
+                  </motion.button>
                 </div>
 
                 {/* 2. Friends / Followers Count Modifier */}

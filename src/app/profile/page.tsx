@@ -74,7 +74,7 @@ export default function ProfilePage() {
           if (fresh.bio) setBio(fresh.bio);
           if (fresh.name) setDisplayName(fresh.name);
           if (fresh.links && fresh.links.length > 0) setLinks(fresh.links);
-          if (fresh.verifiedBadge) setVerifiedBadge(fresh.verifiedBadge);
+          setVerifiedBadge(fresh.verifiedBadge);
           if (fresh.customFriendsCount) setCustomFriendsCount(fresh.customFriendsCount);
         }
       });
